@@ -10,10 +10,13 @@ interface AppointmentWithPatient extends Appointment {
   in_progress_at?: string
 }
 
+type TabType = 'scheduled' | 'checked_in' | 'in_progress'
+
 export default function ClinicFlow() {
   const [appointments, setAppointments] = useState<AppointmentWithPatient[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabType>('scheduled')
   const [timers, setTimers] = useState<{ [key: string]: number }>({})
 
   useEffect(() => {
@@ -109,138 +112,155 @@ export default function ClinicFlow() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const getNextStatus = (current: string): string | null => {
-    const flow = ['scheduled', 'checked_in', 'in_progress', 'completed']
-    const idx = flow.indexOf(current)
-    return idx < flow.length - 1 ? flow[idx + 1] : null
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-600">⏳ Carregando...</div></div>
+
+  const scheduled = appointments.filter(a => a.status === 'scheduled')
+  const checkedIn = appointments.filter(a => a.status === 'checked_in')
+  const inProgress = appointments.filter(a => a.status === 'in_progress')
+  const completed = appointments.filter(a => a.status === 'completed')
+
+  const getDisplayAppointments = () => {
+    switch (activeTab) {
+      case 'scheduled':
+        return scheduled
+      case 'checked_in':
+        return checkedIn
+      case 'in_progress':
+        return inProgress
+      default:
+        return []
+    }
   }
 
-  const statusLabels: { [key: string]: string } = {
-    scheduled: 'Agendado',
-    checked_in: 'Sala de Espera',
-    in_progress: 'Em Atendimento',
-    completed: 'Finalizado',
-    cancelled: 'Cancelado'
-  }
-
-  const statusIcons: { [key: string]: string } = {
-    scheduled: '📅',
-    checked_in: '⏳',
-    in_progress: '🦷',
-    completed: '✅',
-    cancelled: '❌'
-  }
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-600 text-lg">⏳ Carregando...</div></div>
-
-  const grouped = {
-    scheduled: appointments.filter(a => a.status === 'scheduled'),
-    checked_in: appointments.filter(a => a.status === 'checked_in'),
-    in_progress: appointments.filter(a => a.status === 'in_progress'),
-    completed: appointments.filter(a => a.status === 'completed')
-  }
-
-  const totalAppointments = appointments.length
+  const displayAppointments = getDisplayAppointments()
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
           <h1 className="text-4xl font-bold text-gray-900">Fluxo na Clínica</h1>
-          <p className="text-gray-600 mt-2">
-            {format(new Date(), 'EEEE, d MMMM yyyy', { locale: ptBR })} • {totalAppointments} agendamentos
-          </p>
+          <p className="text-gray-600 mt-2">{format(new Date(), 'EEEE, d MMMM yyyy', { locale: ptBR })}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {(['scheduled', 'checked_in', 'in_progress', 'completed'] as const).map(status => {
-            const count = grouped[status].length
-            const colors = {
-              scheduled: 'bg-blue-50 border-blue-200 text-blue-900',
-              checked_in: 'bg-yellow-50 border-yellow-200 text-yellow-900',
-              in_progress: 'bg-purple-50 border-purple-200 text-purple-900',
-              completed: 'bg-green-50 border-green-200 text-green-900'
-            }
-            return (
-              <div key={status} className={`p-4 rounded-lg border-2 ${colors[status]}`}>
-                <div className="text-2xl mb-2">{statusIcons[status]}</div>
-                <div className="font-bold text-lg">{count}</div>
-                <div className="text-sm opacity-75">{statusLabels[status]}</div>
-              </div>
-            )
-          })}
+        {/* Estatísticas */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-2xl font-bold text-blue-600">{scheduled.length}</div>
+            <div className="text-sm text-gray-600">Agendados</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-2xl font-bold text-yellow-600">{checkedIn.length}</div>
+            <div className="text-sm text-gray-600">Sala de Espera</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-2xl font-bold text-purple-600">{inProgress.length}</div>
+            <div className="text-sm text-gray-600">Em Atendimento</div>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="text-2xl font-bold text-green-600">{completed.length}</div>
+            <div className="text-sm text-gray-600">Finalizados</div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {(['scheduled', 'checked_in', 'in_progress', 'completed'] as const).map(status => (
-            <div key={status} className="bg-white rounded-lg shadow-md border-t-4" style={{
-              borderTopColor: status === 'scheduled' ? '#3b82f6' : status === 'checked_in' ? '#eab308' : status === 'in_progress' ? '#a855f7' : '#22c55e'
-            }}>
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                  <span>{statusIcons[status]}</span>
-                  {statusLabels[status]}
-                </h2>
-              </div>
+        {/* Abas */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('scheduled')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition ${
+                activeTab === 'scheduled'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📅 Agendados Para Hoje ({scheduled.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('checked_in')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition ${
+                activeTab === 'checked_in'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              ⏳ Na Sala de Espera ({checkedIn.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('in_progress')}
+              className={`flex-1 px-6 py-4 text-center font-medium transition ${
+                activeTab === 'in_progress'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🦷 Nos Consultórios ({inProgress.length})
+            </button>
+          </div>
 
-              <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
-                {grouped[status].length === 0 ? (
-                  <p className="text-gray-500 text-center py-8 text-sm">-</p>
-                ) : (
-                  grouped[status].map(appt => (
-                    <div
-                      key={appt.id}
-                      className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition"
-                    >
-                      <div className="font-bold text-gray-900 text-sm mb-2">{appt.patient_name}</div>
-                      <div className="text-xs text-gray-600 space-y-1 mb-3">
-                        <div>⏰ {appt.appointment_time} - {appt.procedure}</div>
-                        <div>⏱️ {appt.duration_minutes} min</div>
+          {/* Conteúdo das abas */}
+          <div className="p-6">
+            {displayAppointments.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-5xl mb-4">-</div>
+                <p className="text-gray-600">Nenhum agendamento nesta etapa</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {displayAppointments.map(appt => (
+                  <div key={appt.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-bold text-lg text-gray-900">{appt.appointment_time} - {appt.patient_name}</div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          <div>Procedimento: {appt.procedure}</div>
+                          <div>Duração: {appt.duration_minutes} minutos</div>
+                        </div>
+
+                        {/* Cronômetros */}
+                        {activeTab === 'checked_in' && (
+                          <div className="mt-3 inline-block px-3 py-2 bg-yellow-100 rounded font-mono text-lg font-bold text-yellow-800">
+                            ⏳ {formatTime(timers[`${appt.id}-wait`] || 0)}
+                          </div>
+                        )}
+
+                        {activeTab === 'in_progress' && (
+                          <div className="mt-3 inline-block px-3 py-2 bg-purple-100 rounded font-mono text-lg font-bold text-purple-800">
+                            🦷 {formatTime(timers[`${appt.id}-service`] || 0)}
+                          </div>
+                        )}
                       </div>
 
-                      {status === 'checked_in' && (
-                        <div className="text-sm font-mono bg-yellow-100 p-2 rounded text-center text-yellow-900 mb-3 font-bold">
-                          ⏳ {formatTime(timers[`${appt.id}-wait`] || 0)}
-                        </div>
+                      {/* Botão Avançar */}
+                      {activeTab === 'scheduled' && (
+                        <button
+                          onClick={() => handleStatusChange(appt.id, 'checked_in')}
+                          className="ml-4 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-medium whitespace-nowrap"
+                        >
+                          → Chamar
+                        </button>
                       )}
-
-                      {status === 'in_progress' && (
-                        <div className="text-sm font-mono bg-purple-100 p-2 rounded text-center text-purple-900 mb-3 font-bold">
-                          🦷 {formatTime(timers[`${appt.id}-service`] || 0)}
-                        </div>
+                      {activeTab === 'checked_in' && (
+                        <button
+                          onClick={() => handleStatusChange(appt.id, 'in_progress')}
+                          className="ml-4 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-medium whitespace-nowrap"
+                        >
+                          → Consultório
+                        </button>
                       )}
-
-                      {status !== 'completed' && status !== 'cancelled' && (
-                        <div>
-                          <button
-                            onClick={() => {
-                              const next = getNextStatus(status)
-                              if (next) handleStatusChange(appt.id, next)
-                            }}
-                            className="w-full px-3 py-2 bg-blue-600 text-white text-xs rounded font-medium hover:bg-blue-700 transition"
-                          >
-                            Avançar →
-                          </button>
-                        </div>
+                      {activeTab === 'in_progress' && (
+                        <button
+                          onClick={() => handleStatusChange(appt.id, 'completed')}
+                          className="ml-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium whitespace-nowrap"
+                        >
+                          ✓ Finalizar
+                        </button>
                       )}
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h3 className="font-bold text-blue-900 mb-2">💡 Fluxo do Paciente:</h3>
-          <div className="flex items-center justify-center gap-2 text-sm text-blue-800 flex-wrap">
-            <span className="px-3 py-1 bg-blue-100 rounded-full">📅 Agendado</span>
-            <span className="text-lg">→</span>
-            <span className="px-3 py-1 bg-yellow-100 rounded-full">⏳ Sala de Espera</span>
-            <span className="text-lg">→</span>
-            <span className="px-3 py-1 bg-purple-100 rounded-full">🦷 Em Atendimento</span>
-            <span className="text-lg">→</span>
-            <span className="px-3 py-1 bg-green-100 rounded-full">✅ Finalizado</span>
+            )}
           </div>
         </div>
       </div>
