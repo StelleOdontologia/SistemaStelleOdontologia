@@ -109,16 +109,6 @@ export default function ClinicFlow() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled': return 'bg-blue-50 border-blue-300'
-      case 'checked_in': return 'bg-yellow-50 border-yellow-300'
-      case 'in_progress': return 'bg-purple-50 border-purple-300'
-      case 'completed': return 'bg-green-50 border-green-300'
-      default: return 'bg-gray-50'
-    }
-  }
-
   const getNextStatus = (current: string): string | null => {
     const flow = ['scheduled', 'checked_in', 'in_progress', 'completed']
     const idx = flow.indexOf(current)
@@ -133,7 +123,15 @@ export default function ClinicFlow() {
     cancelled: 'Cancelado'
   }
 
-  if (loading) return <div className="p-8">Carregando...</div>
+  const statusIcons: { [key: string]: string } = {
+    scheduled: '📅',
+    checked_in: '⏳',
+    in_progress: '🦷',
+    completed: '✅',
+    cancelled: '❌'
+  }
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-600 text-lg">⏳ Carregando...</div></div>
 
   const grouped = {
     scheduled: appointments.filter(a => a.status === 'scheduled'),
@@ -142,65 +140,109 @@ export default function ClinicFlow() {
     completed: appointments.filter(a => a.status === 'completed')
   }
 
+  const totalAppointments = appointments.length
+
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-2">Fluxo na Clínica</h1>
-      <p className="text-gray-600 mb-6">{format(new Date(), 'EEEE, d MMMM yyyy', { locale: ptBR })}</p>
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">Fluxo na Clínica</h1>
+          <p className="text-gray-600 mt-2">
+            {format(new Date(), 'EEEE, d MMMM yyyy', { locale: ptBR })} • {totalAppointments} agendamentos
+          </p>
+        </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        {(['scheduled', 'checked_in', 'in_progress', 'completed'] as const).map(status => (
-          <div key={status} className="bg-gray-100 rounded-lg p-4">
-            <h2 className="font-bold text-lg mb-4 text-gray-800">
-              {statusLabels[status]}
-              <span className="text-sm font-normal text-gray-600 ml-2">({grouped[status].length})</span>
-            </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {(['scheduled', 'checked_in', 'in_progress', 'completed'] as const).map(status => {
+            const count = grouped[status].length
+            const colors = {
+              scheduled: 'bg-blue-50 border-blue-200 text-blue-900',
+              checked_in: 'bg-yellow-50 border-yellow-200 text-yellow-900',
+              in_progress: 'bg-purple-50 border-purple-200 text-purple-900',
+              completed: 'bg-green-50 border-green-200 text-green-900'
+            }
+            return (
+              <div key={status} className={`p-4 rounded-lg border-2 ${colors[status]}`}>
+                <div className="text-2xl mb-2">{statusIcons[status]}</div>
+                <div className="font-bold text-lg">{count}</div>
+                <div className="text-sm opacity-75">{statusLabels[status]}</div>
+              </div>
+            )
+          })}
+        </div>
 
-            <div className="space-y-3">
-              {grouped[status].length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">-</p>
-              ) : (
-                grouped[status].map(appt => (
-                  <div
-                    key={appt.id}
-                    className={`p-4 rounded border-2 ${getStatusColor(status)} space-y-2`}
-                  >
-                    <div className="font-semibold text-sm">{appt.patient_name}</div>
-                    <div className="text-xs text-gray-600">
-                      <div>{appt.appointment_time} - {appt.procedure}</div>
-                      <div>{appt.duration_minutes} min</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {(['scheduled', 'checked_in', 'in_progress', 'completed'] as const).map(status => (
+            <div key={status} className="bg-white rounded-lg shadow-md border-t-4" style={{
+              borderTopColor: status === 'scheduled' ? '#3b82f6' : status === 'checked_in' ? '#eab308' : status === 'in_progress' ? '#a855f7' : '#22c55e'
+            }}>
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <span>{statusIcons[status]}</span>
+                  {statusLabels[status]}
+                </h2>
+              </div>
+
+              <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+                {grouped[status].length === 0 ? (
+                  <p className="text-gray-500 text-center py-8 text-sm">-</p>
+                ) : (
+                  grouped[status].map(appt => (
+                    <div
+                      key={appt.id}
+                      className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition"
+                    >
+                      <div className="font-bold text-gray-900 text-sm mb-2">{appt.patient_name}</div>
+                      <div className="text-xs text-gray-600 space-y-1 mb-3">
+                        <div>⏰ {appt.appointment_time} - {appt.procedure}</div>
+                        <div>⏱️ {appt.duration_minutes} min</div>
+                      </div>
+
+                      {status === 'checked_in' && (
+                        <div className="text-sm font-mono bg-yellow-100 p-2 rounded text-center text-yellow-900 mb-3 font-bold">
+                          ⏳ {formatTime(timers[`${appt.id}-wait`] || 0)}
+                        </div>
+                      )}
+
+                      {status === 'in_progress' && (
+                        <div className="text-sm font-mono bg-purple-100 p-2 rounded text-center text-purple-900 mb-3 font-bold">
+                          🦷 {formatTime(timers[`${appt.id}-service`] || 0)}
+                        </div>
+                      )}
+
+                      {status !== 'completed' && status !== 'cancelled' && (
+                        <div>
+                          <button
+                            onClick={() => {
+                              const next = getNextStatus(status)
+                              if (next) handleStatusChange(appt.id, next)
+                            }}
+                            className="w-full px-3 py-2 bg-blue-600 text-white text-xs rounded font-medium hover:bg-blue-700 transition"
+                          >
+                            Avançar →
+                          </button>
+                        </div>
+                      )}
                     </div>
-
-                    {status === 'checked_in' && (
-                      <div className="text-sm font-mono bg-white p-1 rounded text-center text-blue-600">
-                        {formatTime(timers[`${appt.id}-wait`] || 0)}
-                      </div>
-                    )}
-
-                    {status === 'in_progress' && (
-                      <div className="text-sm font-mono bg-white p-1 rounded text-center text-purple-600">
-                        {formatTime(timers[`${appt.id}-service`] || 0)}
-                      </div>
-                    )}
-
-                    {status !== 'completed' && status !== 'cancelled' && (
-                      <div className="pt-2">
-                        <button
-                          onClick={() => {
-                            const next = getNextStatus(status)
-                            if (next) handleStatusChange(appt.id, next)
-                          }}
-                          className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                        >
-                          Avançar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
+          ))}
+        </div>
+
+        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="font-bold text-blue-900 mb-2">💡 Fluxo do Paciente:</h3>
+          <div className="flex items-center justify-center gap-2 text-sm text-blue-800 flex-wrap">
+            <span className="px-3 py-1 bg-blue-100 rounded-full">📅 Agendado</span>
+            <span className="text-lg">→</span>
+            <span className="px-3 py-1 bg-yellow-100 rounded-full">⏳ Sala de Espera</span>
+            <span className="text-lg">→</span>
+            <span className="px-3 py-1 bg-purple-100 rounded-full">🦷 Em Atendimento</span>
+            <span className="text-lg">→</span>
+            <span className="px-3 py-1 bg-green-100 rounded-full">✅ Finalizado</span>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   )
