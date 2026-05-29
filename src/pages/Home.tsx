@@ -13,7 +13,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link
             to="/pacientes"
             className="p-8 bg-white rounded-lg shadow-lg hover:shadow-xl transition text-center"
@@ -37,6 +37,19 @@ export default function Home() {
             </h2>
             <p className="text-gray-600">
               Visualizar e gerenciar agendamentos
+            </p>
+          </Link>
+
+          <Link
+            to="/fluxo"
+            className="p-8 bg-white rounded-lg shadow-lg hover:shadow-xl transition text-center"
+          >
+            <div className="text-4xl mb-4">⏱️</div>
+            <h2 className="text-2xl font-bold text-blue-900 mb-2">
+              Fluxo na Clínica
+            </h2>
+            <p className="text-gray-600">
+              Gerenciar fluxo do dia com cronômetros
             </p>
           </Link>
         </div>
