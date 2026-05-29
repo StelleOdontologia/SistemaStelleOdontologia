@@ -12,6 +12,7 @@ export default function Appointments() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; time: string } | null>(null)
+  const [draggedAppt, setDraggedAppt] = useState<Appointment | null>(null)
 
   useEffect(() => {
     loadData()
@@ -95,6 +96,54 @@ export default function Appointments() {
     )
   }
 
+  const handleDragStart = (appt: Appointment) => {
+    setDraggedAppt(appt)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.currentTarget.classList.add('bg-blue-100')
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.currentTarget.classList.remove('bg-blue-100')
+  }
+
+  const handleDrop = async (e: React.DragEvent, date: Date, time: string) => {
+    e.preventDefault()
+    e.currentTarget.classList.remove('bg-blue-100')
+
+    if (!draggedAppt) return
+
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const existing = appointments.find(
+      appt => appt.appointment_date === dateStr && appt.appointment_time === time
+    )
+
+    if (existing) {
+      alert('Horário já ocupado')
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          appointment_date: dateStr,
+          appointment_time: time
+        })
+        .eq('id', draggedAppt.id)
+
+      if (error) throw error
+      loadData()
+    } catch (error) {
+      console.error('Erro ao mover:', error)
+      alert('Erro ao mover agendamento')
+    } finally {
+      setDraggedAppt(null)
+    }
+  }
+
   const weekDays = getWeekDays()
   const timeSlots = getTimeSlots()
 
@@ -148,7 +197,10 @@ export default function Appointments() {
                   return (
                     <td
                       key={`${day.toISOString()}-${time}`}
-                      className="border p-1"
+                      className="border p-1 transition"
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={e => handleDrop(e, day, time)}
                       onClick={() => {
                         if (!appt) {
                           setSelectedSlot({ date: day, time })
@@ -158,7 +210,9 @@ export default function Appointments() {
                     >
                       {appt ? (
                         <div
-                          className={`p-2 rounded text-sm border cursor-pointer hover:shadow ${getStatusColor(appt.status)}`}
+                          draggable
+                          onDragStart={() => handleDragStart(appt)}
+                          className={`p-2 rounded text-sm border cursor-move hover:shadow ${getStatusColor(appt.status)} ${draggedAppt?.id === appt.id ? 'opacity-50' : ''}`}
                         >
                           <div className="font-semibold text-xs">
                             {patients.find(p => p.id === appt.patient_id)?.name?.split(' ')[0]}
