@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { AppointmentForm } from '@/components/AppointmentForm'
 import type { Appointment, Patient } from '@/lib/supabase'
 import { addDays, startOfWeek, format, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -180,45 +181,24 @@ export default function Appointments() {
       </div>
 
       {showForm && selectedSlot && (
-        <div className="mt-8 p-6 bg-blue-50 rounded border border-blue-200">
+        <div className="mt-8 max-w-2xl mx-auto p-6 bg-blue-50 rounded border border-blue-200">
           <h2 className="text-xl font-bold mb-4">
             Novo Agendamento - {format(selectedSlot.date, 'dd/MM/yyyy')} às {selectedSlot.time}
           </h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Paciente</label>
-              <select className="w-full px-3 py-2 border rounded">
-                <option value="">Selecione um paciente</option>
-                {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Procedimento</label>
-              <input type="text" className="w-full px-3 py-2 border rounded" placeholder="Ex: Limpeza, Obturação" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Duração</label>
-              <select className="w-full px-3 py-2 border rounded">
-                <option value="15">15 minutos</option>
-                <option value="30">30 minutos</option>
-                <option value="45">45 minutos</option>
-                <option value="60">60 minutos</option>
-              </select>
-            </div>
-            <div className="flex gap-2 pt-4">
-              <button className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                Salvar Agendamento
-              </button>
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex-1 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
+          <AppointmentForm
+            date={selectedSlot.date}
+            time={selectedSlot.time}
+            patients={patients}
+            onSuccess={() => {
+              setShowForm(false)
+              setSelectedSlot(null)
+              loadData()
+            }}
+            onCancel={() => {
+              setShowForm(false)
+              setSelectedSlot(null)
+            }}
+          />
         </div>
       )}
     </div>
