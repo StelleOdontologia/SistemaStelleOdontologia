@@ -99,7 +99,10 @@ export function AppointmentForm({
           .select('id')
           .single()
 
-        if (error) throw error
+        if (error) {
+          console.error('Erro ao criar paciente:', error)
+          throw new Error(`Erro ao criar paciente: ${error.message}`)
+        }
         patientId = data.id
       }
 
@@ -119,9 +122,10 @@ export function AppointmentForm({
 
       if (error) throw error
       onSuccess()
-    } catch (error) {
-      console.error('Erro:', error)
-      alert('Erro ao criar agendamento')
+    } catch (error: any) {
+      console.error('Erro ao criar agendamento:', error)
+      const errorMsg = error?.message || error?.details || 'Erro desconhecido'
+      alert(`Erro ao criar agendamento:\n\n${errorMsg}`)
     } finally {
       setLoading(false)
     }
