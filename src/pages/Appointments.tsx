@@ -227,17 +227,18 @@ export default function Appointments() {
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="bg-gray-50 p-3 w-20 text-center font-bold text-sm text-gray-700 border-r border-gray-200">
+              <tr className="border-b-2 border-gray-300">
+                <th className="bg-gray-50 p-2 w-16 text-center font-bold text-xs text-gray-700 border-r border-gray-300">
                   Hora
                 </th>
                 {weekDays.map(day => (
                   <th
                     key={day.toISOString()}
-                    className="bg-blue-600 text-white p-3 text-center font-bold border-r border-blue-700 w-44"
+                    className="bg-blue-600 text-white p-3 text-center font-bold border-r border-blue-700"
+                    style={{ width: '160px' }}
                   >
-                    <div className="text-sm uppercase">{format(day, 'EEEE', { locale: ptBR })}</div>
-                    <div className="text-2xl font-bold">{format(day, 'dd')}</div>
+                    <div className="text-xs uppercase">{format(day, 'EEE', { locale: ptBR })}</div>
+                    <div className="text-xl font-bold">{format(day, 'dd')}</div>
                     <div className="text-xs opacity-90">{format(day, 'MMM', { locale: ptBR })}</div>
                   </th>
                 ))}
@@ -245,13 +246,14 @@ export default function Appointments() {
             </thead>
             <tbody>
               {timeSlots.map((time, timeIdx) => (
-                <tr key={`row-${timeIdx}`} className="border-b border-gray-200">
+                <tr key={`row-${timeIdx}`} className="border-b border-gray-200" style={{ height: '32px' }}>
                   <td
-                    className={`bg-gray-50 p-2 text-center font-semibold text-xs border-r border-gray-200 text-gray-700 h-8 ${
-                      timeIdx % 4 === 0 ? 'font-bold text-sm' : 'text-gray-400'
+                    className={`bg-gray-50 p-1 text-center border-r border-gray-300 text-gray-700 ${
+                      timeIdx % 4 === 0 ? 'font-bold text-xs' : 'text-xs text-gray-400'
                     }`}
+                    style={{ height: '32px' }}
                   >
-                    {timeIdx % 4 === 0 ? time : ''}
+                    {timeIdx % 4 === 0 ? <div>{time}</div> : ''}
                   </td>
 
                   {weekDays.map((day, dayIdx) => {
@@ -267,10 +269,11 @@ export default function Appointments() {
                     return (
                       <td
                         key={`${day.toISOString()}-${time}`}
-                        className={`border-r border-gray-200 p-1 h-8 cursor-pointer transition ${
-                          appt ? 'p-0' : 'bg-white hover:bg-gray-50'
+                        className={`border-r border-gray-200 cursor-pointer transition ${
+                          appt ? 'p-0' : 'p-0 bg-white hover:bg-gray-50'
                         }`}
                         rowSpan={rowSpan}
+                        style={{ height: appt ? `${rowSpan ? rowSpan * 32 : 32}px` : '32px' }}
                         onClick={() => {
                           if (!appt) {
                             setSelectedSlot({ date: day, time })
@@ -280,22 +283,21 @@ export default function Appointments() {
                       >
                         {appt && (
                           <div
-                            className={`${getStatusBgColor(appt.status)} text-white rounded p-2 h-full flex flex-col justify-between text-xs`}
-                            style={{
-                              minHeight: `${rowSpan ? rowSpan * 32 : 32}px`
-                            }}
+                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1 h-full flex flex-col justify-between text-xs overflow-hidden`}
                           >
-                            <div>
-                              <div className="font-bold truncate">
+                            <div className="leading-tight">
+                              <div className="font-bold truncate text-sm">
                                 {patient?.name.split(' ')[0]}
                               </div>
-                              <div className="truncate opacity-90">
+                              <div className="truncate opacity-90 text-xs">
                                 {appt.procedure}
                               </div>
                             </div>
-                            <div className="opacity-75 font-medium text-xs">
-                              {appt.duration_minutes}m
-                            </div>
+                            {rowSpan && rowSpan > 1 && (
+                              <div className="opacity-75 font-medium text-xs text-center">
+                                {appt.duration_minutes}m
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
