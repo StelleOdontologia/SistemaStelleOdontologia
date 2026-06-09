@@ -127,9 +127,16 @@ export default function Appointments() {
     }
   }
 
+  // Normaliza data para meio-dia local (evita problemas de timezone)
+  const normalizeDate = (date: Date) => {
+    const d = new Date(date)
+    d.setHours(12, 0, 0, 0)
+    return d
+  }
+
   const getWeekDays = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
-    return Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
+    return Array.from({ length: 6 }, (_, i) => normalizeDate(addDays(weekStart, i)))
   }
 
   const get15MinSlots = () => {
@@ -252,7 +259,7 @@ export default function Appointments() {
         <div className="bg-white rounded-lg shadow-sm p-2 mb-4 overflow-x-auto">
           <div className="flex gap-1 min-w-max">
             {Array.from({ length: 14 }, (_, i) => {
-              const date = addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), i - 3)
+              const date = normalizeDate(addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), i - 3))
               const isCurrentWeek = weekDays.some(d => isSameDay(d, date))
               const isToday = isSameDay(date, new Date())
 
