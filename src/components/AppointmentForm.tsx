@@ -243,6 +243,33 @@ export function AppointmentForm({
       {/* Step 2: Detalhes do Agendamento */}
       {step === 'details' && selectedPatient && (
         <>
+          {/* Dados do Paciente */}
+          <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase">Paciente</label>
+                <p className="text-gray-900 font-bold">{selectedPatient.name}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase">Telefone</label>
+                <p className="text-gray-900">{selectedPatient.phone || '—'}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase">CPF</label>
+                <p className="text-gray-900">{selectedPatient.cpf || '—'}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase">Sexo</label>
+                <p className="text-gray-900">{selectedPatient.gender === 'M' ? 'Masculino' : 'Feminino'}</p>
+              </div>
+            </div>
+            {selectedPatient.id.startsWith('temp-') && (
+              <p className="mt-2 text-sm text-yellow-700 font-semibold">
+                📋 Paciente Não Cadastrado - Será cadastrado ao salvar
+              </p>
+            )}
+          </div>
+
           {/* Procedimento */}
           <div>
             <label className="block text-sm font-bold text-gray-900 mb-2">Tipo de Atendimento</label>

@@ -287,21 +287,24 @@ export default function Appointments() {
                       >
                         {appt && (
                           <div
-                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1 h-full flex flex-col justify-between text-xs overflow-hidden`}
+                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden`}
                           >
                             <div className="leading-tight">
-                              <div className="font-bold truncate text-sm">
-                                {patient?.name.split(' ')[0]}
+                              <div className="font-bold text-xs">
+                                {normalizeTime(appt.appointment_time)}
                               </div>
-                              <div className="truncate opacity-90 text-xs">
+                              <div className="font-semibold truncate text-xs uppercase">
+                                {patient?.name}
+                              </div>
+                              {patient?.phone && (
+                                <div className="truncate opacity-90 text-xs">
+                                  {patient.phone}
+                                </div>
+                              )}
+                              <div className="truncate opacity-75 text-xs italic">
                                 {appt.procedure}
                               </div>
                             </div>
-                            {rowSpan && rowSpan > 1 && (
-                              <div className="opacity-75 font-medium text-xs text-center">
-                                {appt.duration_minutes}m
-                              </div>
-                            )}
                           </div>
                         )}
                       </td>
