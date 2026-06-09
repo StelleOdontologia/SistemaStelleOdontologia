@@ -385,45 +385,62 @@ export default function Appointments() {
                           }
                         }}
                       >
-                        {appt && (
-                          <div
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.effectAllowed = 'move'
-                              setDraggedAppt(appt)
-                            }}
-                            onDragEnd={() => {
-                              setDraggedAppt(null)
-                              setDragOver(null)
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (!draggedAppt) {
-                                setActionMenu({ appt, x: e.clientX, y: e.clientY })
-                              }
-                            }}
-                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden cursor-pointer ${
-                              draggedAppt?.id === appt.id ? 'opacity-50' : ''
-                            }`}
-                          >
-                            <div className="leading-tight">
-                              <div className="font-bold text-xs">
-                                {normalizeTime(appt.appointment_time)}
-                              </div>
-                              <div className="font-semibold truncate text-xs uppercase">
-                                {patient?.name}
-                              </div>
-                              {patient?.phone && (
-                                <div className="truncate opacity-90 text-xs">
-                                  {patient.phone}
+                        {appt && (() => {
+                          const startTime = normalizeTime(appt.appointment_time)
+                          const startDate = parse(startTime, 'HH:mm', new Date())
+                          const endDate = new Date(startDate.getTime() + appt.duration_minutes * 60000)
+                          const endTime = format(endDate, 'HH:mm')
+
+                          return (
+                            <div
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = 'move'
+                                setDraggedAppt(appt)
+                              }}
+                              onDragEnd={() => {
+                                setDraggedAppt(null)
+                                setDragOver(null)
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (!draggedAppt) {
+                                  setActionMenu({ appt, x: e.clientX, y: e.clientY })
+                                }
+                              }}
+                              className={`bg-white border-l-4 ${
+                                appt.status === 'confirmed' ? 'border-green-500' :
+                                appt.status === 'cancelled' ? 'border-red-500' :
+                                appt.status === 'checked_in' ? 'border-yellow-500' :
+                                appt.status === 'in_progress' ? 'border-purple-500' :
+                                appt.status === 'completed' ? 'border-green-700' :
+                                'border-blue-500'
+                              } rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden cursor-pointer shadow-sm hover:shadow-md ${
+                                draggedAppt?.id === appt.id ? 'opacity-50' : ''
+                              }`}
+                            >
+                              <div className="leading-tight text-gray-900">
+                                <div className="font-bold text-xs">
+                                  {startTime} a {endTime}
                                 </div>
-                              )}
-                              <div className="truncate opacity-75 text-xs italic">
-                                {appt.procedure}
+                                <div className="text-xs text-gray-500">
+                                  ({appt.duration_minutes}min)
+                                </div>
+                                <div className="font-bold uppercase text-xs mt-1 truncate">
+                                  {patient?.name}
+                                  {patient?.patient_code && (
+                                    <span className="text-gray-500 font-normal"> - {patient.patient_code}</span>
+                                  )}
+                                </div>
+                                {patient?.phone && (
+                                  <div className="text-gray-600 text-xs">
+                                    {patient.phone}
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        )}
+                          )
+                        })()}
                       </td>
                     )
                   })}
