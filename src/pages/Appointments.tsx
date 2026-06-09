@@ -15,6 +15,44 @@ export default function Appointments() {
   const [draggedAppt, setDraggedAppt] = useState<Appointment | null>(null)
   const [dragOver, setDragOver] = useState<{ date: Date; time: string } | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [actionMenu, setActionMenu] = useState<{ appt: Appointment; x: number; y: number } | null>(null)
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null)
+
+  // Atualizar status do agendamento
+  const updateApptStatus = async (apptId: string, newStatus: Appointment['status']) => {
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: newStatus })
+        .eq('id', apptId)
+
+      if (error) throw error
+      await loadData()
+      setActionMenu(null)
+    } catch (error: any) {
+      console.error('Erro ao atualizar status:', error)
+      alert(`Erro: ${error?.message || 'Erro desconhecido'}`)
+    }
+  }
+
+  // Excluir agendamento
+  const deleteAppt = async (apptId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este agendamento?')) return
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', apptId)
+
+      if (error) throw error
+      await loadData()
+      setActionMenu(null)
+    } catch (error: any) {
+      console.error('Erro ao excluir:', error)
+      alert(`Erro: ${error?.message || 'Erro desconhecido'}`)
+    }
+  }
 
   // Função para mover agendamento via drag-and-drop
   const handleDrop = async (newDate: Date, newTime: string) => {
@@ -107,9 +145,10 @@ export default function Appointments() {
   const getStatusBgColor = (status: string) => {
     switch (status) {
       case 'scheduled': return 'bg-blue-500'
+      case 'confirmed': return 'bg-green-500'
       case 'checked_in': return 'bg-yellow-500'
       case 'in_progress': return 'bg-purple-500'
-      case 'completed': return 'bg-green-500'
+      case 'completed': return 'bg-green-600'
       case 'cancelled': return 'bg-red-500'
       default: return 'bg-gray-500'
     }
@@ -357,7 +396,13 @@ export default function Appointments() {
                               setDraggedAppt(null)
                               setDragOver(null)
                             }}
-                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden cursor-move ${
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!draggedAppt) {
+                                setActionMenu({ appt, x: e.clientX, y: e.clientY })
+                              }
+                            }}
+                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden cursor-pointer ${
                               draggedAppt?.id === appt.id ? 'opacity-50' : ''
                             }`}
                           >
@@ -387,6 +432,158 @@ export default function Appointments() {
             </tbody>
           </table>
         </div>
+
+        {/* Menu de Ações do Agendamento */}
+        {actionMenu && (
+          <>
+            {/* Overlay para fechar ao clicar fora */}
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setActionMenu(null)}
+            />
+            <div
+              className="fixed z-50 bg-white rounded-lg shadow-2xl border-2 border-gray-200 py-2 min-w-[200px]"
+              style={{
+                left: Math.min(actionMenu.x, window.innerWidth - 220),
+                top: Math.min(actionMenu.y, window.innerHeight - 250)
+              }}
+            >
+              <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+                <div className="font-bold text-sm text-gray-900 truncate">
+                  {patients.find(p => p.id === actionMenu.appt.patient_id)?.name || 'Paciente'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {format(new Date(actionMenu.appt.appointment_date + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR })} às {normalizeTime(actionMenu.appt.appointment_time)}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingAppt(actionMenu.appt)
+                  setActionMenu(null)
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-blue-50 flex items-center gap-3 text-blue-600 font-medium"
+              >
+                <span className="text-lg">✏️</span>
+                <span>Editar</span>
+              </button>
+
+              <button
+                onClick={() => updateApptStatus(actionMenu.appt.id, 'confirmed')}
+                className="w-full text-left px-4 py-2 hover:bg-green-50 flex items-center gap-3 text-gray-700 font-medium"
+              >
+                <span className="text-lg">✓</span>
+                <span>Confirmar</span>
+              </button>
+
+              <button
+                onClick={() => updateApptStatus(actionMenu.appt.id, 'cancelled')}
+                className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-3 text-gray-700 font-medium"
+              >
+                <span className="text-lg">📅</span>
+                <span>Desmarcar</span>
+              </button>
+
+              <div className="border-t border-gray-200 my-1" />
+
+              <button
+                onClick={() => deleteAppt(actionMenu.appt.id)}
+                className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-3 text-red-600 font-medium"
+              >
+                <span className="text-lg">🗑️</span>
+                <span>Excluir</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Modal de Edição */}
+        {editingAppt && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+              <h2 className="text-2xl font-bold mb-4 text-gray-900">✏️ Editar Agendamento</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Tipo de Atendimento</label>
+                  <select
+                    value={editingAppt.procedure}
+                    onChange={(e) => setEditingAppt({ ...editingAppt, procedure: e.target.value })}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-gray-900"
+                  >
+                    <option value="Consulta">Consulta</option>
+                    <option value="Limpeza">Limpeza</option>
+                    <option value="Avaliação Cirurgia">Avaliação Cirurgia</option>
+                    <option value="Avaliação Clínico">Avaliação Clínico</option>
+                    <option value="Obturação">Obturação</option>
+                    <option value="Canal">Canal</option>
+                    <option value="Extração">Extração</option>
+                    <option value="Prótese">Prótese</option>
+                    <option value="Implante">Implante</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Duração</label>
+                  <select
+                    value={editingAppt.duration_minutes}
+                    onChange={(e) => setEditingAppt({ ...editingAppt, duration_minutes: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-gray-900"
+                  >
+                    <option value="15">15 minutos</option>
+                    <option value="30">30 minutos</option>
+                    <option value="45">45 minutos</option>
+                    <option value="60">1 hora</option>
+                    <option value="90">1h 30min</option>
+                    <option value="120">2 horas</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Observações</label>
+                  <textarea
+                    value={editingAppt.observations || ''}
+                    onChange={(e) => setEditingAppt({ ...editingAppt, observations: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-gray-900 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('appointments')
+                        .update({
+                          procedure: editingAppt.procedure,
+                          duration_minutes: editingAppt.duration_minutes,
+                          observations: editingAppt.observations
+                        })
+                        .eq('id', editingAppt.id)
+
+                      if (error) throw error
+                      await loadData()
+                      setEditingAppt(null)
+                    } catch (error: any) {
+                      alert(`Erro: ${error?.message}`)
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700"
+                >
+                  ✓ Salvar
+                </button>
+                <button
+                  onClick={() => setEditingAppt(null)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-900 font-bold rounded-lg hover:bg-gray-400"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tooltip flutuante durante drag */}
         {draggedAppt && dragOver && (

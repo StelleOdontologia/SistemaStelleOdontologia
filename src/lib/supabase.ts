@@ -13,7 +13,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export interface Patient {
   id: string
   name: string
-  cpf: string
+  cpf?: string
   gender: 'M' | 'F'
   marital_status?: string
   profession?: string
@@ -22,6 +22,14 @@ export interface Patient {
   complement?: string
   neighborhood?: string
   phone?: string
+  // New fields
+  patient_code?: string
+  social_name?: string
+  nickname?: string
+  email?: string
+  landline?: string
+  city?: string
+  zip_code?: string
   created_at: string
 }
 
@@ -33,7 +41,7 @@ export interface Appointment {
   appointment_time: string
   duration_minutes: number
   procedure: string
-  status: 'scheduled' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled'
+  status: 'scheduled' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled'
   observations?: string
   whatsapp_confirmed: boolean
   created_at: string
