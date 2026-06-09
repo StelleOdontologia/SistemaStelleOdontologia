@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-type TabKey = 'whatsapp' | 'messages'
+type TabKey = 'whatsapp' | 'messages' | 'test'
 
 interface WhatsAppConfig {
   id?: string
@@ -40,6 +40,13 @@ export default function Settings() {
   })
   const [policies, setPolicies] = useState<MessagePolicy[]>([])
   const [editingPolicy, setEditingPolicy] = useState<MessagePolicy | null>(null)
+  const [sending, setSending] = useState(false)
+  const [testDate, setTestDate] = useState(() => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return tomorrow.toISOString().split('T')[0]
+  })
+  const [testResults, setTestResults] = useState<any>(null)
 
   useEffect(() => {
     loadData()
@@ -151,6 +158,40 @@ export default function Settings() {
     }
   }
 
+  const handleSendReminders = async (dryRun: boolean) => {
+    setSending(true)
+    setTestResults(null)
+    try {
+      const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL
+      const supabaseKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-reminders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey
+        },
+        body: JSON.stringify({
+          target_date: testDate,
+          dry_run: dryRun
+        })
+      })
+
+      const data = await response.json()
+      setTestResults(data)
+
+      if (!response.ok) {
+        alert(`Erro: ${data.error || 'Desconhecido'}`)
+      }
+    } catch (error: any) {
+      console.error('Erro:', error)
+      alert(`Erro: ${error.message}`)
+    } finally {
+      setSending(false)
+    }
+  }
+
   const handleTogglePolicy = async (policy: MessagePolicy) => {
     try {
       const { error } = await supabase
@@ -200,6 +241,16 @@ export default function Settings() {
               }`}
             >
               💬 Política de Mensagens
+            </button>
+            <button
+              onClick={() => setActiveTab('test')}
+              className={`px-6 py-4 font-semibold transition ${
+                activeTab === 'test'
+                  ? 'border-b-4 border-blue-600 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              🧪 Testar Envio
             </button>
           </div>
         </div>
@@ -447,6 +498,131 @@ export default function Settings() {
               {policies.length === 0 && (
                 <div className="text-center p-12 bg-gray-50 rounded-lg">
                   <p className="text-gray-500">Nenhuma política cadastrada ainda.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: TESTAR ENVIO */}
+          {activeTab === 'test' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">🧪 Teste de Envio de Mensagens</h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  Envie lembretes para os pacientes com agendamento na data escolhida.
+                  Use o "Preview" para ver as mensagens antes de enviar.
+                </p>
+              </div>
+
+              <div className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ <strong>Atenção:</strong> O envio "Real" dispara mensagens via WhatsApp imediatamente.
+                  Use "Preview" para verificar antes.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-900 mb-2">
+                  Data dos Agendamentos
+                </label>
+                <input
+                  type="date"
+                  value={testDate}
+                  onChange={(e) => setTestDate(e.target.value)}
+                  className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Por padrão: amanhã. Você pode mudar para qualquer data.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleSendReminders(true)}
+                  disabled={sending}
+                  className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  {sending ? '⏳ Processando...' : '👁️ Preview (Não envia)'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Tem certeza que deseja ENVIAR as mensagens agora?')) {
+                      handleSendReminders(false)
+                    }
+                  }}
+                  disabled={sending}
+                  className="px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                >
+                  {sending ? '⏳ Enviando...' : '📤 Enviar Agora (REAL)'}
+                </button>
+              </div>
+
+              {/* Resultados */}
+              {testResults && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-gray-50 border-2 border-gray-300 rounded-lg">
+                    <h3 className="font-bold text-gray-900 mb-2">📊 Resumo do Envio</h3>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-600">Data Alvo</p>
+                        <p className="font-bold text-gray-900">{testResults.target_date}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Total Agendamentos</p>
+                        <p className="font-bold text-gray-900">{testResults.total || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Status</p>
+                        <p className="font-bold text-green-600">{testResults.ok ? '✅ OK' : '❌ ERRO'}</p>
+                      </div>
+                    </div>
+                    {testResults.error && (
+                      <p className="mt-2 text-red-600 font-bold">Erro: {testResults.error}</p>
+                    )}
+                    {testResults.message && (
+                      <p className="mt-2 text-gray-700">{testResults.message}</p>
+                    )}
+                  </div>
+
+                  {testResults.results && testResults.results.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="font-bold text-gray-900">📋 Detalhes por Paciente:</h3>
+                      {testResults.results.map((r: any, idx: number) => (
+                        <div key={idx} className={`p-4 border-2 rounded-lg ${
+                          r.status === 'sent' ? 'bg-green-50 border-green-300' :
+                          r.status === 'preview' ? 'bg-blue-50 border-blue-300' :
+                          r.status === 'failed' ? 'bg-red-50 border-red-300' :
+                          'bg-yellow-50 border-yellow-300'
+                        }`}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-bold text-gray-900">{r.patient}</p>
+                              <p className="text-sm text-gray-600">📞 {r.phone || '—'}</p>
+                              {r.reason && <p className="text-sm text-yellow-700 mt-1">⚠️ {r.reason}</p>}
+                              {r.error && <p className="text-sm text-red-700 mt-1">❌ {r.error}</p>}
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              r.status === 'sent' ? 'bg-green-600 text-white' :
+                              r.status === 'preview' ? 'bg-blue-600 text-white' :
+                              r.status === 'failed' ? 'bg-red-600 text-white' :
+                              'bg-yellow-600 text-white'
+                            }`}>
+                              {r.status === 'sent' ? '✅ ENVIADO' :
+                               r.status === 'preview' ? '👁️ PREVIEW' :
+                               r.status === 'failed' ? '❌ FALHOU' :
+                               '⏭️ PULADO'}
+                            </span>
+                          </div>
+                          {r.message && (
+                            <div className="mt-3 p-3 bg-white rounded border border-gray-200">
+                              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Mensagem:</p>
+                              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{r.message}</pre>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
