@@ -93,8 +93,7 @@ export function AppointmentForm({
           .insert([{
             name: selectedPatient.name,
             cpf: '',
-            gender: 'M',
-            created_at: new Date().toISOString()
+            gender: 'M'
           }])
           .select('id')
           .single()
