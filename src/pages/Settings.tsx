@@ -162,28 +162,13 @@ export default function Settings() {
     setSending(true)
     setTestResults(null)
     try {
-      const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL
-      const supabaseKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/send-reminders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey
-        },
-        body: JSON.stringify({
-          target_date: testDate,
-          dry_run: dryRun
-        })
+      const { data, error } = await supabase.rpc('send_appointment_reminders', {
+        p_target_date: testDate,
+        p_dry_run: dryRun
       })
 
-      const data = await response.json()
+      if (error) throw error
       setTestResults(data)
-
-      if (!response.ok) {
-        alert(`Erro: ${data.error || 'Desconhecido'}`)
-      }
     } catch (error: any) {
       console.error('Erro:', error)
       alert(`Erro: ${error.message}`)
