@@ -577,12 +577,18 @@ export default function Settings() {
                           r.status === 'sent' ? 'bg-green-50 border-green-300' :
                           r.status === 'preview' ? 'bg-blue-50 border-blue-300' :
                           r.status === 'failed' ? 'bg-red-50 border-red-300' :
+                          r.status === 'timeout' ? 'bg-orange-50 border-orange-300' :
                           'bg-yellow-50 border-yellow-300'
                         }`}>
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <p className="font-bold text-gray-900">{r.patient}</p>
-                              <p className="text-sm text-gray-600">📞 {r.phone || '—'}</p>
+                              <p className="text-sm text-gray-600">
+                                📞 {r.phone || '—'}
+                                {r.phone_formatted && (
+                                  <span className="text-gray-400"> → {r.phone_formatted}</span>
+                                )}
+                              </p>
                               {r.reason && <p className="text-sm text-yellow-700 mt-1">⚠️ {r.reason}</p>}
                               {r.error && <p className="text-sm text-red-700 mt-1">❌ {r.error}</p>}
                             </div>
@@ -590,17 +596,48 @@ export default function Settings() {
                               r.status === 'sent' ? 'bg-green-600 text-white' :
                               r.status === 'preview' ? 'bg-blue-600 text-white' :
                               r.status === 'failed' ? 'bg-red-600 text-white' :
+                              r.status === 'timeout' ? 'bg-orange-600 text-white' :
                               'bg-yellow-600 text-white'
                             }`}>
-                              {r.status === 'sent' ? '✅ ENVIADO' :
+                              {r.status === 'sent' ? '✅ ENTREGUE' :
                                r.status === 'preview' ? '👁️ PREVIEW' :
                                r.status === 'failed' ? '❌ FALHOU' :
+                               r.status === 'timeout' ? '⏱️ TIMEOUT' :
                                '⏭️ PULADO'}
                             </span>
                           </div>
+
+                          {/* Detalhes HTTP - Evolution API */}
+                          {(r.http_status !== undefined && r.http_status !== null) && (
+                            <div className="mt-3 p-3 bg-gray-100 rounded border border-gray-300">
+                              <p className="text-xs font-bold text-gray-700 uppercase mb-2">🔍 Resposta da Evolution API:</p>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                  <span className="text-gray-600">Status HTTP:</span>
+                                  <span className={`ml-2 font-bold ${
+                                    r.http_status >= 200 && r.http_status < 300 ? 'text-green-700' : 'text-red-700'
+                                  }`}>{r.http_status}</span>
+                                </div>
+                                {r.url_called && (
+                                  <div className="col-span-2">
+                                    <p className="text-xs text-gray-500 break-all">{r.url_called}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {r.http_response && (
+                                <div className="mt-2">
+                                  <p className="text-xs text-gray-600 mb-1">Resposta:</p>
+                                  <pre className="text-xs bg-white p-2 rounded border border-gray-200 overflow-x-auto max-h-32">
+                                    {r.http_response}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {r.message && (
                             <div className="mt-3 p-3 bg-white rounded border border-gray-200">
-                              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Mensagem:</p>
+                              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Mensagem Enviada:</p>
                               <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{r.message}</pre>
                             </div>
                           )}
