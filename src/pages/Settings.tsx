@@ -169,6 +169,35 @@ export default function Settings() {
 
       if (error) throw error
       setTestResults(data)
+
+      // Se não for preview e há logs com status 'queued', polling para verificar entrega
+      if (!dryRun && data?.results) {
+        const queuedResults = data.results.filter((r: any) => r.status === 'queued' && r.log_id)
+        if (queuedResults.length > 0) {
+          // Aguarda 3 segundos e verifica status
+          setTimeout(async () => {
+            const updatedResults = await Promise.all(
+              data.results.map(async (r: any) => {
+                if (r.status !== 'queued' || !r.log_id) return r
+                try {
+                  const { data: statusData } = await supabase.rpc('check_message_status', {
+                    p_log_id: r.log_id
+                  })
+                  return {
+                    ...r,
+                    status: statusData?.status || r.status,
+                    http_status: statusData?.http_status,
+                    http_response: statusData?.http_response
+                  }
+                } catch (err) {
+                  return r
+                }
+              })
+            )
+            setTestResults({ ...data, results: updatedResults })
+          }, 3000)
+        }
+      }
     } catch (error: any) {
       console.error('Erro:', error)
       alert(`Erro: ${error.message}`)
@@ -597,12 +626,14 @@ export default function Settings() {
                               r.status === 'preview' ? 'bg-blue-600 text-white' :
                               r.status === 'failed' ? 'bg-red-600 text-white' :
                               r.status === 'timeout' ? 'bg-orange-600 text-white' :
+                              r.status === 'queued' ? 'bg-purple-600 text-white animate-pulse' :
                               'bg-yellow-600 text-white'
                             }`}>
                               {r.status === 'sent' ? '✅ ENTREGUE' :
                                r.status === 'preview' ? '👁️ PREVIEW' :
                                r.status === 'failed' ? '❌ FALHOU' :
                                r.status === 'timeout' ? '⏱️ TIMEOUT' :
+                               r.status === 'queued' ? '🔄 VERIFICANDO...' :
                                '⏭️ PULADO'}
                             </span>
                           </div>
