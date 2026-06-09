@@ -88,8 +88,8 @@ export function AppointmentForm({
 
       // Se o paciente é novo (temp), criar no banco
       if (selectedPatient.id.startsWith('temp-')) {
-        // Gerar CPF temporário único para evitar conflito com constraint UNIQUE
-        const tempCpf = `TEMP-${Date.now()}`
+        // Gerar CPF temporário de 11 dígitos único (fits in varchar(14))
+        const tempCpf = String(Date.now()).slice(-11)
 
         const { data, error } = await supabase
           .from('patients')
