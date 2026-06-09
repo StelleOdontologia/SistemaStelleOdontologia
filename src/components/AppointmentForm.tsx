@@ -23,7 +23,12 @@ export function AppointmentForm({
   const [searchInput, setSearchInput] = useState('')
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [step, setStep] = useState<'patient' | 'details'>('patient')
+  const [step, setStep] = useState<'patient' | 'newPatient' | 'details'>('patient')
+  const [newPatientData, setNewPatientData] = useState({
+    name: '',
+    phone: '',
+    birth_date: ''
+  })
   const [formData, setFormData] = useState({
     procedure: '',
     duration_minutes: '30',
@@ -56,15 +61,34 @@ export function AppointmentForm({
 
   const handleCreatePatient = () => {
     if (searchInput.trim()) {
-      setSelectedPatient({
-        id: 'temp-' + Date.now(),
+      setNewPatientData({
         name: searchInput.trim(),
-        cpf: '',
-        gender: 'M',
-        created_at: new Date().toISOString()
+        phone: '',
+        birth_date: ''
       })
-      setStep('details')
+      setStep('newPatient')
     }
+  }
+
+  const handleConfirmNewPatient = () => {
+    if (!newPatientData.name.trim()) {
+      alert('Informe o nome do paciente')
+      return
+    }
+    if (!newPatientData.phone.trim()) {
+      alert('Telefone é obrigatório para envio de WhatsApp')
+      return
+    }
+    setSelectedPatient({
+      id: 'temp-' + Date.now(),
+      name: newPatientData.name.trim(),
+      cpf: '',
+      gender: 'M',
+      phone: newPatientData.phone,
+      birth_date: newPatientData.birth_date || undefined,
+      created_at: new Date().toISOString()
+    } as Patient)
+    setStep('details')
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -91,13 +115,21 @@ export function AppointmentForm({
         // Gerar CPF temporário de 11 dígitos único (fits in varchar(14))
         const tempCpf = String(Date.now()).slice(-11)
 
+        const patientPayload: any = {
+          name: selectedPatient.name,
+          cpf: tempCpf,
+          gender: 'M',
+          phone: selectedPatient.phone || null
+        }
+
+        // Adicionar data de nascimento se foi informada
+        if ((selectedPatient as any).birth_date) {
+          patientPayload.birth_date = (selectedPatient as any).birth_date
+        }
+
         const { data, error } = await supabase
           .from('patients')
-          .insert([{
-            name: selectedPatient.name,
-            cpf: tempCpf,
-            gender: 'M'
-          }])
+          .insert([patientPayload])
           .select('id')
           .single()
 
@@ -240,6 +272,79 @@ export function AppointmentForm({
               Próximo →
             </button>
           )}
+        </div>
+      )}
+
+      {/* Step 1.5: Cadastro Rápido de Novo Paciente */}
+      {step === 'newPatient' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+            <p className="font-bold text-gray-900 mb-1">📋 Cadastro Rápido</p>
+            <p className="text-sm text-gray-700">
+              Preencha os dados básicos. O cadastro completo pode ser feito depois.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-900 mb-2">
+              Nome do Paciente <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={newPatientData.name}
+              onChange={(e) => setNewPatientData({ ...newPatientData, name: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900"
+              placeholder="Nome completo"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-900 mb-2">
+              Telefone / WhatsApp <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              value={newPatientData.phone}
+              onChange={(e) => setNewPatientData({ ...newPatientData, phone: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900"
+              placeholder="(21) 99999-9999"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              💬 Necessário para envio de mensagens de confirmação
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-900 mb-2">
+              Data de Nascimento (opcional)
+            </label>
+            <input
+              type="date"
+              value={newPatientData.birth_date}
+              onChange={(e) => setNewPatientData({ ...newPatientData, birth_date: e.target.value })}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t-2 border-gray-200">
+            <button
+              type="button"
+              onClick={() => {
+                setStep('patient')
+                setNewPatientData({ name: '', phone: '', birth_date: '' })
+              }}
+              className="flex-1 px-4 py-3 bg-gray-300 text-gray-900 font-bold rounded-lg hover:bg-gray-400 transition"
+            >
+              ← Voltar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmNewPatient}
+              className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition"
+            >
+              Próximo →
+            </button>
+          </div>
         </div>
       )}
 
