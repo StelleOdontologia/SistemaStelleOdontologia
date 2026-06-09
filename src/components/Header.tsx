@@ -11,7 +11,8 @@ export function Header() {
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/pacientes', label: 'Pacientes', icon: '👥' },
     { path: '/agendamentos', label: 'Agendamentos', icon: '📅' },
-    { path: '/fluxo', label: 'Fluxo', icon: '⏱️' }
+    { path: '/fluxo', label: 'Fluxo', icon: '⏱️' },
+    { path: '/configuracoes', label: 'Configurações', icon: '⚙️' }
   ]
 
   return (
