@@ -12,6 +12,44 @@ export default function Appointments() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; time: string } | null>(null)
+  const [draggedAppt, setDraggedAppt] = useState<Appointment | null>(null)
+  const [dragOver, setDragOver] = useState<{ date: Date; time: string } | null>(null)
+  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+
+  // Função para mover agendamento via drag-and-drop
+  const handleDrop = async (newDate: Date, newTime: string) => {
+    if (!draggedAppt) return
+
+    const newDateStr = format(newDate, 'yyyy-MM-dd')
+
+    // Se for o mesmo slot, cancela
+    if (draggedAppt.appointment_date === newDateStr &&
+        draggedAppt.appointment_time.substring(0, 5) === newTime) {
+      setDraggedAppt(null)
+      setDragOver(null)
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          appointment_date: newDateStr,
+          appointment_time: newTime
+        })
+        .eq('id', draggedAppt.id)
+
+      if (error) throw error
+
+      await loadData()
+    } catch (error: any) {
+      console.error('Erro ao mover agendamento:', error)
+      alert(`Erro ao mover: ${error?.message || 'Erro desconhecido'}`)
+    } finally {
+      setDraggedAppt(null)
+      setDragOver(null)
+    }
+  }
 
   useEffect(() => {
     loadData()
@@ -122,7 +160,14 @@ export default function Appointments() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div
+      className="min-h-screen bg-gray-50 p-4"
+      onDragOver={(e) => {
+        if (draggedAppt) {
+          setMousePos({ x: e.clientX, y: e.clientY })
+        }
+      }}
+    >
       <div className="max-w-full">
         {/* Header com navegação */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
@@ -265,6 +310,7 @@ export default function Appointments() {
                     const patient = appt ? patients.find(p => p.id === appt.patient_id) : null
                     const rowSpan = appt ? getSlotRowspan(appt.duration_minutes) : undefined
                     const isOccupied = isSlotOccupied(day, time, dayAppointments[dayIdx])
+                    const isDragTarget = dragOver?.date && isSameDay(dragOver.date, day) && dragOver.time === time
 
                     if (isOccupied && !appt) {
                       return null
@@ -275,7 +321,7 @@ export default function Appointments() {
                         key={`${day.toISOString()}-${time}`}
                         className={`border-r border-gray-200 cursor-pointer transition ${
                           appt ? 'p-0' : 'p-0 bg-white hover:bg-gray-50'
-                        }`}
+                        } ${isDragTarget ? 'bg-blue-200 ring-2 ring-blue-500' : ''}`}
                         rowSpan={rowSpan}
                         style={{ height: appt ? `${rowSpan ? rowSpan * 32 : 32}px` : '32px' }}
                         onClick={() => {
@@ -284,10 +330,36 @@ export default function Appointments() {
                             setShowForm(true)
                           }
                         }}
+                        onDragOver={(e) => {
+                          if (draggedAppt) {
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = 'move'
+                            if (!appt || appt.id !== draggedAppt.id) {
+                              setDragOver({ date: day, time })
+                            }
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          if (draggedAppt) {
+                            handleDrop(day, time)
+                          }
+                        }}
                       >
                         {appt && (
                           <div
-                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden`}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move'
+                              setDraggedAppt(appt)
+                            }}
+                            onDragEnd={() => {
+                              setDraggedAppt(null)
+                              setDragOver(null)
+                            }}
+                            className={`${getStatusBgColor(appt.status)} text-white rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden cursor-move ${
+                              draggedAppt?.id === appt.id ? 'opacity-50' : ''
+                            }`}
                           >
                             <div className="leading-tight">
                               <div className="font-bold text-xs">
@@ -316,8 +388,25 @@ export default function Appointments() {
           </table>
         </div>
 
+        {/* Tooltip flutuante durante drag */}
+        {draggedAppt && dragOver && (
+          <div
+            className="fixed pointer-events-none z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-xl border-2 border-blue-800"
+            style={{
+              left: mousePos.x + 15,
+              top: mousePos.y + 15
+            }}
+          >
+            <div className="text-xs opacity-90">Mover para:</div>
+            <div className="font-bold text-sm">
+              {format(dragOver.date, 'EEEE, dd/MM', { locale: ptBR })}
+            </div>
+            <div className="font-bold text-lg">{dragOver.time}</div>
+          </div>
+        )}
+
         <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-          💡 Clique em qualquer célula vazia para criar um novo agendamento
+          💡 Clique em uma célula vazia para criar agendamento • Arraste um agendamento para movê-lo
         </div>
       </div>
     </div>
