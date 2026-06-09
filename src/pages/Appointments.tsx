@@ -86,10 +86,14 @@ export default function Appointments() {
     return durationMinutes / 15
   }
 
+  // Normaliza horário para "HH:mm" (remove segundos se houver)
+  const normalizeTime = (time: string) => time.substring(0, 5)
+
   const isSlotOccupied = (date: Date, time: string, appointments: Appointment[]) => {
     const dateStr = format(date, 'yyyy-MM-dd')
     return appointments.some(appt => {
-      const apptStart = parse(appt.appointment_time, 'HH:mm', new Date())
+      const apptTime = normalizeTime(appt.appointment_time)
+      const apptStart = parse(apptTime, 'HH:mm', new Date())
       const apptEnd = new Date(apptStart.getTime() + appt.duration_minutes * 60000)
       const slotTime = parse(time, 'HH:mm', new Date())
 
@@ -103,7 +107,7 @@ export default function Appointments() {
     const dateStr = format(date, 'yyyy-MM-dd')
     return appointments.find(appt => {
       if (appt.appointment_date !== dateStr) return false
-      return appt.appointment_time === time
+      return normalizeTime(appt.appointment_time) === time
     })
   }
 
