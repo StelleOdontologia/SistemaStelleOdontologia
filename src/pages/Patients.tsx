@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { PatientForm } from '@/components/PatientForm'
 import type { Patient } from '@/lib/supabase'
@@ -9,6 +10,7 @@ type TabType = 'search' | 'birthdays'
 type SearchMode = 'simple' | 'advanced' | string  // string = letter A-Z
 
 export default function Patients() {
+  const navigate = useNavigate()
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -331,7 +333,7 @@ export default function Patients() {
                     <div
                       key={patient.id}
                       className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition cursor-pointer bg-white"
-                      onClick={() => { setEditingPatient(patient); setShowForm(true) }}
+                      onClick={() => navigate(`/pacientes/${patient.id}`)}
                     >
                       <div className={`w-12 h-12 rounded-full ${avatarColor} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
                         {initials}

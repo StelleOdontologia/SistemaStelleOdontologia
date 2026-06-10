@@ -9,6 +9,7 @@ import ClinicFlow from '@/pages/ClinicFlow'
 import Settings from '@/pages/Settings'
 import ConfirmAppointment from '@/pages/ConfirmAppointment'
 import Attendance from '@/pages/Attendance'
+import PatientDetail from '@/pages/PatientDetail'
 import { useLocation } from 'react-router-dom'
 
 function AppLayout() {
@@ -21,6 +22,7 @@ function AppLayout() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/pacientes" element={<Patients />} />
+        <Route path="/pacientes/:id" element={<PatientDetail />} />
         <Route path="/agendamentos" element={<Appointments />} />
         <Route path="/fluxo" element={<ClinicFlow />} />
         <Route path="/atendimento/:id" element={<Attendance />} />
