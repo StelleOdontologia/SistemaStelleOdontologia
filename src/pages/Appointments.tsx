@@ -188,26 +188,41 @@ export default function Appointments() {
   // Normaliza horário para "HH:mm" (remove segundos se houver)
   const normalizeTime = (time: string) => time.substring(0, 5)
 
+  // Slot é "ocupado" SOMENTE por agendamentos ATIVOS (cancelados liberam o slot)
   const isSlotOccupied = (date: Date, time: string, appointments: Appointment[]) => {
     const dateStr = format(date, 'yyyy-MM-dd')
     return appointments.some(appt => {
+      if (appt.status === 'cancelled') return false
       const apptTime = normalizeTime(appt.appointment_time)
       const apptStart = parse(apptTime, 'HH:mm', new Date())
       const apptEnd = new Date(apptStart.getTime() + appt.duration_minutes * 60000)
       const slotTime = parse(time, 'HH:mm', new Date())
 
       return appt.appointment_date === dateStr &&
-             slotTime >= apptStart &&
+             slotTime > apptStart &&
              slotTime < apptEnd
     })
   }
 
+  // Retorna o agendamento PRIMÁRIO do slot (ativo tem prioridade sobre cancelado)
   const getAppointmentAtSlot = (date: Date, time: string) => {
     const dateStr = format(date, 'yyyy-MM-dd')
-    return appointments.find(appt => {
-      if (appt.appointment_date !== dateStr) return false
-      return normalizeTime(appt.appointment_time) === time
-    })
+    const all = appointments.filter(appt =>
+      appt.appointment_date === dateStr &&
+      normalizeTime(appt.appointment_time) === time
+    )
+    return all.find(a => a.status !== 'cancelled') || all[0]
+  }
+
+  // Retorna agendamento CANCELADO que existe no mesmo slot (para mostrar como "histórico")
+  const getCancelledShadowAt = (date: Date, time: string, primaryId?: string) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    return appointments.find(appt =>
+      appt.appointment_date === dateStr &&
+      normalizeTime(appt.appointment_time) === time &&
+      appt.status === 'cancelled' &&
+      appt.id !== primaryId
+    )
   }
 
   const weekDays = getWeekDays()
@@ -373,25 +388,29 @@ export default function Appointments() {
                     const isOccupied = isSlotOccupied(day, time, dayAppointments[dayIdx])
                     const isDragTarget = dragOver?.date && isSameDay(dragOver.date, day) && dragOver.time === time
 
-                    // Esconde slot vazio coberto por outro agendamento
+                    // Esconde slot vazio coberto por agendamento ATIVO
                     if (isOccupied && !appt) {
                       return null
                     }
 
-                    // Se há agendamento mas slot já está coberto por outro (overlap),
-                    // não renderiza o segundo - evita bug visual de "transbordar" para coluna seguinte
-                    if (appt) {
-                      const overlapping = dayAppointments[dayIdx].find(other => {
+                    // Se este appt é CANCELADO mas existe um ATIVO sobreposto, esconde o cancelado
+                    if (appt && appt.status === 'cancelled') {
+                      const activeOverlap = dayAppointments[dayIdx].find(other => {
                         if (other.id === appt.id) return false
+                        if (other.status === 'cancelled') return false
                         const otherStart = parse(normalizeTime(other.appointment_time), 'HH:mm', new Date())
                         const otherEnd = new Date(otherStart.getTime() + other.duration_minutes * 60000)
                         const thisStart = parse(normalizeTime(appt.appointment_time), 'HH:mm', new Date())
                         return thisStart >= otherStart && thisStart < otherEnd
                       })
-                      if (overlapping) {
-                        return null
-                      }
+                      if (activeOverlap) return null
                     }
+
+                    // Buscar agendamento cancelado "fantasma" no mesmo slot (para mostrar como histórico)
+                    const cancelledShadow = appt && appt.status !== 'cancelled'
+                      ? getCancelledShadowAt(day, time, appt.id)
+                      : null
+                    const shadowPatient = cancelledShadow ? patients.find(p => p.id === cancelledShadow.patient_id) : null
 
                     return (
                       <td
@@ -430,6 +449,22 @@ export default function Appointments() {
                           const endTime = format(endDate, 'HH:mm')
 
                           return (
+                            <div className="relative h-full">
+                              {/* Histórico: agendamento cancelado por trás */}
+                              {cancelledShadow && (
+                                <div
+                                  className="absolute inset-0 bg-red-100 border border-red-300 rounded-sm m-0.5 p-1 z-0 opacity-60"
+                                  title={`Substituiu desmarcação de: ${shadowPatient?.name || ''}`}
+                                >
+                                  <div className="text-xs text-red-700 font-bold line-through truncate">
+                                    {shadowPatient?.name || 'Desmarcado'}
+                                  </div>
+                                  <div className="text-xs text-red-600 line-through truncate">
+                                    ❌ Desmarcado
+                                  </div>
+                                </div>
+                              )}
+
                             <div
                               draggable
                               onDragStart={(e) => {
@@ -446,16 +481,16 @@ export default function Appointments() {
                                   setActionMenu({ appt, x: e.clientX, y: e.clientY })
                                 }
                               }}
-                              className={`bg-white border-l-4 ${
+                              className={`relative z-10 bg-white border-l-4 ${
                                 appt.status === 'confirmed' ? 'border-green-500' :
                                 appt.status === 'cancelled' ? 'border-red-500' :
                                 appt.status === 'checked_in' ? 'border-yellow-500' :
                                 appt.status === 'in_progress' ? 'border-purple-500' :
                                 appt.status === 'completed' ? 'border-green-700' :
                                 'border-blue-500'
-                              } rounded-sm m-0.5 p-1.5 h-full flex flex-col text-xs overflow-hidden cursor-pointer shadow-sm hover:shadow-md ${
+                              } rounded-sm h-full flex flex-col text-xs overflow-hidden cursor-pointer shadow-sm hover:shadow-md ${
                                 draggedAppt?.id === appt.id ? 'opacity-50' : ''
-                              }`}
+                              } ${cancelledShadow ? 'ml-1 mt-1 mr-0 mb-0 shadow-md' : 'm-0.5'} p-1.5`}
                             >
                               <div className="leading-tight text-gray-900">
                                 <div className="font-bold text-xs">
@@ -501,6 +536,7 @@ export default function Appointments() {
                                   </div>
                                 )}
                               </div>
+                            </div>
                             </div>
                           )
                         })()}
