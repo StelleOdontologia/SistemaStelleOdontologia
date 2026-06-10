@@ -75,16 +75,13 @@ export function AppointmentForm({
       alert('Informe o nome do paciente')
       return
     }
-    if (!newPatientData.phone.trim()) {
-      alert('Telefone é obrigatório para envio de WhatsApp')
-      return
-    }
+    // Telefone e data de nascimento são OPCIONAIS nesse cadastro rápido
     setSelectedPatient({
       id: 'temp-' + Date.now(),
       name: newPatientData.name.trim(),
       cpf: '',
       gender: 'M',
-      phone: newPatientData.phone,
+      phone: newPatientData.phone || undefined,
       birth_date: newPatientData.birth_date || undefined,
       created_at: new Date().toISOString()
     } as Patient)

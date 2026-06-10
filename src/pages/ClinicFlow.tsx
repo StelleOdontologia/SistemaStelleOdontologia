@@ -41,6 +41,14 @@ export default function ClinicFlow() {
   const [filter, setFilter] = useState<FilterType>('all')
   const [now, setNow] = useState(new Date())
   const [expandedDetails, setExpandedDetails] = useState<{ [key: string]: { telefones?: boolean; info?: boolean } }>({})
+  const [startModal, setStartModal] = useState<Appointment | null>(null)
+  const [startForm, setStartForm] = useState({
+    dentist: 'Dra Késya',
+    convenio: '',
+    procedure: '',
+    room: 'CONSULTÓRIO 1',
+    redirectToAttendance: false
+  })
 
   useEffect(() => {
     loadAppointments()
@@ -113,9 +121,24 @@ export default function ClinicFlow() {
   }
 
   const handleStartAppointment = (appt: Appointment) => {
-    updateFlowStatus(appt.id, 'in_progress', {
-      started_at: new Date().toISOString()
+    // Abre modal de início de atendimento
+    setStartModal(appt)
+    setStartForm({
+      dentist: 'Dra Késya',
+      convenio: '',
+      procedure: appt.procedure || 'Consulta',
+      room: `CONSULTÓRIO ${appt.room_number || 1}`,
+      redirectToAttendance: false
     })
+  }
+
+  const handleConfirmStart = async () => {
+    if (!startModal) return
+    await updateFlowStatus(startModal.id, 'in_progress', {
+      started_at: new Date().toISOString(),
+      procedure: startForm.procedure
+    })
+    setStartModal(null)
   }
 
   const handleFinish = (appt: Appointment) => {
@@ -133,7 +156,7 @@ export default function ClinicFlow() {
     })
   }
 
-  // Calcula tempo decorrido
+  // Calcula tempo decorrido até agora
   const elapsedTime = (startedAt?: string): string => {
     if (!startedAt) return '00:00:00'
     const start = parseISO(startedAt)
@@ -143,6 +166,19 @@ export default function ClinicFlow() {
     const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0')
     const s = String(totalSeconds % 60).padStart(2, '0')
     return `${h}:${m}:${s}`
+  }
+
+  // Calcula tempo congelado entre dois timestamps (para mostrar tempo de espera concluído)
+  const frozenTime = (startedAt?: string, endedAt?: string): string => {
+    if (!startedAt) return '0 min'
+    const start = parseISO(startedAt)
+    const end = endedAt ? parseISO(endedAt) : new Date()
+    const diffMs = end.getTime() - start.getTime()
+    const totalMinutes = Math.max(0, Math.floor(diffMs / 60000))
+    if (totalMinutes < 60) return `${totalMinutes} min`
+    const h = Math.floor(totalMinutes / 60)
+    const m = totalMinutes % 60
+    return `${h}h ${m}min`
   }
 
   // Idade e nascimento
@@ -199,12 +235,6 @@ export default function ClinicFlow() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-4">
-
-        {/* Debug info (temporário) */}
-        <div className="mb-3 px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-xs font-mono text-yellow-800">
-          🔍 Debug: Data buscada = <strong>{debugInfo.date}</strong> | Total carregado = <strong>{debugInfo.total}</strong> | Agendados = <strong>{scheduledAppts.length}</strong> | Espera = <strong>{waitingAppts.length}</strong> | Consultórios = <strong>{inProgressAppts.length}</strong> | Cancelados = <strong>{cancelledAppts.length}</strong>
-          {debugInfo.error && <div className="text-red-700 mt-1">❌ Erro: {debugInfo.error}</div>}
-        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -600,7 +630,7 @@ export default function ClinicFlow() {
             {/* ===== ABA 3: NOS CONSULTÓRIOS ===== */}
             {activeTab === 'in_progress' && (
               <div>
-                <h2 className="text-xl font-bold text-purple-700 mb-4">Nos Consultórios</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Nos Consultórios</h2>
 
                 {inProgressAppts.length === 0 ? (
                   <div className="text-center py-16 text-gray-500">
@@ -608,42 +638,104 @@ export default function ClinicFlow() {
                     <p>Nenhum atendimento em andamento</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {inProgressAppts.map(appt => {
-                      const patient = appt.patient
-                      const timer = elapsedTime(appt.started_at)
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Dra Késya</h3>
+                    <button className="text-sm text-gray-600 mb-3 hover:text-gray-900">
+                      ▶ Dados do Dentista
+                    </button>
 
-                      return (
-                        <div key={appt.id} className="border-2 border-purple-300 rounded-lg overflow-hidden bg-purple-50">
-                          <div className="bg-purple-600 text-white px-4 py-2 text-sm font-bold flex items-center gap-2">
-                            <span>🦷</span>
-                            <span>CONSULTÓRIO {appt.room_number || 1} - Em Atendimento</span>
-                          </div>
+                    <div className="space-y-4">
+                      {inProgressAppts.map(appt => {
+                        const patient = appt.patient
+                        const birthInfo = formatBirthInfo(patient?.birth_date)
+                        // Cronômetro do consultório (independente, começa do zero)
+                        const consultTimer = elapsedTime(appt.started_at)
+                        // Tempo de espera CONGELADO (waiting_at → started_at)
+                        const waitedTime = frozenTime(appt.waiting_at, appt.started_at)
+                        const exp = expandedDetails[appt.id] || {}
 
-                          <div className="p-4 flex flex-col sm:flex-row gap-4 items-center">
-                            <div className="w-16 h-16 rounded-full bg-purple-200 flex items-center justify-center text-2xl">
-                              👤
+                        return (
+                          <div key={appt.id} className="border border-gray-300 rounded-lg overflow-hidden">
+                            <div className="bg-gray-100 px-4 py-2 text-sm text-gray-700">
+                              <span className="font-medium">{appt.procedure}</span>
+                              <span className="mx-2">→</span>
+                              <span className="font-bold">CONSULTÓRIO {appt.room_number || 1}</span>
                             </div>
-                            <div className="flex-1">
-                              <div className="font-bold text-purple-900 text-lg">{patient?.name}</div>
-                              <div className="text-sm text-gray-700">{appt.procedure}</div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                Iniciado às {appt.started_at ? format(parseISO(appt.started_at), 'HH:mm') : '—'}
+
+                            <div className="p-4 flex flex-col sm:flex-row gap-4 items-start">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-3xl">
+                                  👤
+                                </div>
+                                {/* Cronômetro do CONSULTÓRIO - independente, conta desde started_at */}
+                                <div className="bg-red-700 text-white font-mono text-xl font-bold px-3 py-1 rounded shadow-inner">
+                                  {consultTimer}
+                                </div>
+                                {/* Tempo de espera CONGELADO */}
+                                <div className="text-xs text-gray-600 text-center">
+                                  🪑 {waitedTime} na sala
+                                </div>
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                  📅 Agendado para {formatTime(appt.appointment_time)}
+                                </div>
+                              </div>
+
+                              <div className="flex-1">
+                                <div className="font-bold text-blue-700 text-lg">{patient?.name}</div>
+                                <div className="text-sm text-gray-700 flex items-center gap-2 flex-wrap mt-1">
+                                  {patient?.nickname && <span>{patient.gender === 'F' ? 'Sra.' : 'Sr.'} {patient.nickname}</span>}
+                                  {patient?.patient_code && (
+                                    <span className="bg-gray-200 px-2 py-0.5 rounded text-xs">{patient.patient_code}</span>
+                                  )}
+                                  {birthInfo && (
+                                    <>
+                                      <span className="text-gray-500">{birthInfo.age} anos</span>
+                                      <span className="text-gray-500">🎂 ({birthInfo.birthStr})</span>
+                                    </>
+                                  )}
+                                </div>
+
+                                <div className="mt-2 space-y-1">
+                                  <button
+                                    onClick={() => toggleExpanded(appt.id, 'info')}
+                                    className="text-sm text-gray-700 hover:text-blue-600 flex items-center gap-1"
+                                  >
+                                    <span>{exp.info ? '▼' : '▶'}</span> Dados Adicionais
+                                  </button>
+                                  {exp.info && (
+                                    <div className="ml-4 text-sm text-gray-600">
+                                      📞 {patient?.phone || '—'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {appt.observations && (
+                                  <div className="text-sm text-blue-600 italic mt-2">
+                                    {appt.observations}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Ações */}
+                              <div className="flex flex-col items-end gap-2">
+                                <button
+                                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold text-sm flex items-center gap-1 shadow"
+                                  title="Abrir tela de atendimento (em breve)"
+                                >
+                                  ✏️ Atendimento
+                                </button>
+                                <button
+                                  onClick={() => handleFinish(appt)}
+                                  className="px-4 py-2 bg-white border-2 border-green-600 text-green-700 hover:bg-green-50 rounded-full font-bold text-sm flex items-center gap-1"
+                                >
+                                  ➡️ Concluir
+                                </button>
                               </div>
                             </div>
-                            <div className="bg-purple-700 text-white font-mono text-xl font-bold px-4 py-2 rounded shadow-inner">
-                              {timer}
-                            </div>
-                            <button
-                              onClick={() => handleFinish(appt)}
-                              className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-sm shadow"
-                            >
-                              ✅ Finalizar
-                            </button>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -652,6 +744,117 @@ export default function ClinicFlow() {
           </div>
         </div>
       </div>
+
+      {/* Modal: Iniciar Atendimento */}
+      {startModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+            {/* Header */}
+            <div className="bg-blue-600 text-white px-5 py-3 rounded-t-lg flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <span>➡️</span> Registrar Início do Atendimento
+              </h3>
+              <button
+                onClick={() => setStartModal(null)}
+                className="text-white hover:bg-blue-700 rounded p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="p-5">
+              <h4 className="text-xl font-bold text-blue-700 mb-4">{startModal.patient?.name}</h4>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Dentista</label>
+                  <select
+                    value={startForm.dentist}
+                    onChange={(e) => setStartForm({ ...startForm, dentist: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
+                  >
+                    <option>Dra Késya</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Convênio</label>
+                  <select
+                    value={startForm.convenio}
+                    onChange={(e) => setStartForm({ ...startForm, convenio: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
+                  >
+                    <option value="">Particular</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Tipo de Atendimento</label>
+                  <select
+                    value={startForm.procedure}
+                    onChange={(e) => setStartForm({ ...startForm, procedure: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
+                  >
+                    <option value="Consulta">Consulta</option>
+                    <option value="Limpeza">Limpeza</option>
+                    <option value="Avaliação Cirurgia">Avaliação Cirurgia</option>
+                    <option value="Avaliação Clínico">Avaliação Clínico</option>
+                    <option value="Tratamento Clínico Continuação">Tratamento Clínico Continuação</option>
+                    <option value="Obturação">Obturação</option>
+                    <option value="Canal">Canal</option>
+                    <option value="Extração">Extração</option>
+                    <option value="Prótese">Prótese</option>
+                    <option value="Implante">Implante</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Sala/Consultório</label>
+                  <select
+                    value={startForm.room}
+                    onChange={(e) => setStartForm({ ...startForm, room: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
+                  >
+                    <option>CONSULTÓRIO 1</option>
+                    <option>CONSULTÓRIO 2</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Toggle */}
+              <div className="flex items-center gap-2 mb-2">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={startForm.redirectToAttendance}
+                    onChange={(e) => setStartForm({ ...startForm, redirectToAttendance: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"></div>
+                </label>
+                <span className="text-sm text-gray-700">Redirecionar para o Atendimento</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 px-5 py-3 flex justify-end gap-2">
+              <button
+                onClick={() => setStartModal(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-medium"
+              >
+                ✕ Fechar
+              </button>
+              <button
+                onClick={handleConfirmStart}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold flex items-center gap-1"
+              >
+                ➡️ Iniciar Atendimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
