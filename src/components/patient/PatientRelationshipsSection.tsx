@@ -62,22 +62,37 @@ export function PatientRelationshipsSection({ patient }: Props) {
   const loadRelationships = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      // Busca os relacionamentos
+      const { data: relsData, error: relsError } = await supabase
         .from('patient_relationships')
-        .select(`
-          id,
-          relationship_type,
-          related_patient_id,
-          related_patient:patients!patient_relationships_related_patient_id_fkey(
-            id, name, patient_code, nickname, birth_date, gender, cpf, phone, photo_url
-          )
-        `)
+        .select('id, relationship_type, related_patient_id')
         .eq('patient_id', patient.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
-      setRelationships(data as any || [])
+      if (relsError) throw relsError
+      if (!relsData || relsData.length === 0) {
+        setRelationships([])
+        return
+      }
+
+      // Busca os dados dos pacientes relacionados
+      const ids = relsData.map(r => r.related_patient_id)
+      const { data: patientsData, error: patientsError } = await supabase
+        .from('patients')
+        .select('id, name, patient_code, nickname, birth_date, gender, cpf, phone, photo_url')
+        .in('id', ids)
+        .is('deleted_at', null)
+
+      if (patientsError) throw patientsError
+
+      // Junta os dados
+      const merged = relsData.map(r => ({
+        ...r,
+        related_patient: patientsData?.find(p => p.id === r.related_patient_id)
+      }))
+
+      setRelationships(merged as any)
     } catch (err: any) {
       console.error('Erro:', err)
     } finally {
