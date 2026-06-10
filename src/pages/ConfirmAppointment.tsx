@@ -118,6 +118,8 @@ export default function ConfirmAppointment() {
 
   if (done) {
     const isConfirmed = done === 'confirmed'
+    const whatsappLink = 'https://wa.me/5521976939004'
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-blue-100 p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
@@ -134,13 +136,21 @@ export default function ConfirmAppointment() {
             </div>
           )}
 
-          <p className="text-gray-600 mb-2">
+          <p className="text-gray-600 mb-6">
             {isConfirmed
               ? 'Sua consulta está confirmada. Esperamos por você!'
               : 'Sua consulta foi cancelada. Entre em contato para reagendar.'}
           </p>
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
+          {/* Botão voltar pro WhatsApp */}
+          <a
+            href={whatsappLink}
+            className="block w-full py-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition transform active:scale-95"
+          >
+            💬 Voltar para o WhatsApp
+          </a>
+
+          <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-sm font-bold text-blue-700">🦷 Stelle Odontologia</p>
           </div>
         </div>
