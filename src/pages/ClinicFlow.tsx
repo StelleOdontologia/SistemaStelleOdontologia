@@ -49,9 +49,12 @@ export default function ClinicFlow() {
     return () => clearInterval(interval)
   }, [])
 
+  const [debugInfo, setDebugInfo] = useState<{ date: string; total: number; error?: string }>({ date: '', total: 0 })
+
   const loadAppointments = async () => {
     try {
       const today = format(new Date(), 'yyyy-MM-dd')
+      console.log('🔍 Buscando agendamentos para:', today)
 
       const { data, error } = await supabase
         .from('appointments')
@@ -63,8 +66,15 @@ export default function ClinicFlow() {
         .is('deleted_at', null)
         .order('appointment_time', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro Supabase:', error)
+        setDebugInfo({ date: today, total: 0, error: error.message })
+        throw error
+      }
+
+      console.log('✅ Agendamentos recebidos:', data?.length, data)
       setAppointments(data || [])
+      setDebugInfo({ date: today, total: data?.length || 0 })
     } catch (error: any) {
       console.error('Erro:', error)
     } finally {
@@ -189,6 +199,12 @@ export default function ClinicFlow() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-4">
+
+        {/* Debug info (temporário) */}
+        <div className="mb-3 px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-xs font-mono text-yellow-800">
+          🔍 Debug: Data buscada = <strong>{debugInfo.date}</strong> | Total carregado = <strong>{debugInfo.total}</strong> | Agendados = <strong>{scheduledAppts.length}</strong> | Espera = <strong>{waitingAppts.length}</strong> | Consultórios = <strong>{inProgressAppts.length}</strong> | Cancelados = <strong>{cancelledAppts.length}</strong>
+          {debugInfo.error && <div className="text-red-700 mt-1">❌ Erro: {debugInfo.error}</div>}
+        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
