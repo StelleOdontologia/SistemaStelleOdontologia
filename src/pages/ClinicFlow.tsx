@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { format, parse, parseISO, differenceInYears } from 'date-fns'
+import { format, parseISO, differenceInYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 interface Appointment {
@@ -31,16 +32,15 @@ interface Appointment {
   }
 }
 
-type TabType = 'scheduled' | 'waiting' | 'in_progress'
-type FilterType = 'all' | 'kesya' | 'cancelled' | 'pending'
+type ColumnType = 'scheduled' | 'waiting' | 'in_progress'
 
 export default function ClinicFlow() {
+  const navigate = useNavigate()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<TabType>('scheduled')
-  const [filter, setFilter] = useState<FilterType>('all')
   const [now, setNow] = useState(new Date())
-  const [expandedDetails, setExpandedDetails] = useState<{ [key: string]: { telefones?: boolean; info?: boolean } }>({})
+  const [draggedAppt, setDraggedAppt] = useState<Appointment | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<ColumnType | null>(null)
   const [startModal, setStartModal] = useState<Appointment | null>(null)
   const [startForm, setStartForm] = useState({
     dentist: 'Dra Késya',
@@ -52,17 +52,13 @@ export default function ClinicFlow() {
 
   useEffect(() => {
     loadAppointments()
-    // Atualiza cronômetros a cada segundo
     const interval = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(interval)
   }, [])
 
-  const [debugInfo, setDebugInfo] = useState<{ date: string; total: number; error?: string }>({ date: '', total: 0 })
-
   const loadAppointments = async () => {
     try {
       const today = format(new Date(), 'yyyy-MM-dd')
-      console.log('🔍 Buscando agendamentos para:', today)
 
       const { data, error } = await supabase
         .from('appointments')
@@ -74,15 +70,8 @@ export default function ClinicFlow() {
         .is('deleted_at', null)
         .order('appointment_time', { ascending: true })
 
-      if (error) {
-        console.error('Erro Supabase:', error)
-        setDebugInfo({ date: today, total: 0, error: error.message })
-        throw error
-      }
-
-      console.log('✅ Agendamentos recebidos:', data?.length, data)
+      if (error) throw error
       setAppointments(data || [])
-      setDebugInfo({ date: today, total: data?.length || 0 })
     } catch (error: any) {
       console.error('Erro:', error)
     } finally {
@@ -104,7 +93,6 @@ export default function ClinicFlow() {
           updated_at: new Date().toISOString()
         })
         .eq('id', appointmentId)
-
       if (error) throw error
       await loadAppointments()
     } catch (error: any) {
@@ -121,7 +109,6 @@ export default function ClinicFlow() {
   }
 
   const handleStartAppointment = (appt: Appointment) => {
-    // Abre modal de início de atendimento
     setStartModal(appt)
     setStartForm({
       dentist: 'Dra Késya',
@@ -134,54 +121,99 @@ export default function ClinicFlow() {
 
   const handleConfirmStart = async () => {
     if (!startModal) return
-    await updateFlowStatus(startModal.id, 'in_progress', {
+    const apptId = startModal.id
+    await updateFlowStatus(apptId, 'in_progress', {
       started_at: new Date().toISOString(),
       procedure: startForm.procedure
     })
+    const redirect = startForm.redirectToAttendance
     setStartModal(null)
+    if (redirect) {
+      navigate(`/atendimento/${apptId}`)
+    }
   }
 
   const handleFinish = (appt: Appointment) => {
-    if (!confirm('Finalizar atendimento?')) return
+    if (!confirm('Concluir atendimento?')) return
     updateFlowStatus(appt.id, 'completed', {
       completed_at: new Date().toISOString(),
       status: 'completed'
     })
   }
 
-  const handleNoShow = (appt: Appointment) => {
-    if (!confirm('Marcar como falta?')) return
-    updateFlowStatus(appt.id, 'absent', {
-      status: 'no_show'
-    })
+  // Drag-and-drop entre colunas
+  const handleDragStart = (appt: Appointment) => {
+    setDraggedAppt(appt)
   }
 
-  // Calcula tempo decorrido até agora
+  const handleDragEnd = () => {
+    setDraggedAppt(null)
+    setDragOverColumn(null)
+  }
+
+  const handleColumnDragOver = (e: React.DragEvent, col: ColumnType) => {
+    if (!draggedAppt) return
+    e.preventDefault()
+    setDragOverColumn(col)
+  }
+
+  const handleColumnDrop = (col: ColumnType) => {
+    if (!draggedAppt) return
+    const currentCol = getColumnOf(draggedAppt)
+    if (currentCol === col) {
+      setDragOverColumn(null)
+      return
+    }
+
+    if (col === 'scheduled') {
+      // Voltar para agendados (cancela check-in)
+      updateFlowStatus(draggedAppt.id, 'pending', {
+        waiting_at: null,
+        arrived_at: null,
+        started_at: null
+      })
+    } else if (col === 'waiting') {
+      // Mover para sala de espera
+      updateFlowStatus(draggedAppt.id, 'waiting', {
+        waiting_at: new Date().toISOString(),
+        arrived_at: draggedAppt.arrived_at || new Date().toISOString(),
+        started_at: null
+      })
+    } else if (col === 'in_progress') {
+      // Mover para atendimento
+      handleStartAppointment(draggedAppt)
+    }
+    setDragOverColumn(null)
+  }
+
+  const getColumnOf = (appt: Appointment): ColumnType => {
+    if (appt.flow_status === 'in_progress') return 'in_progress'
+    if (appt.flow_status === 'waiting') return 'waiting'
+    return 'scheduled'
+  }
+
+  // Tempo decorrido (ao vivo)
   const elapsedTime = (startedAt?: string): string => {
-    if (!startedAt) return '00:00:00'
+    if (!startedAt) return '00:00'
     const start = parseISO(startedAt)
     const diffMs = now.getTime() - start.getTime()
     const totalSeconds = Math.max(0, Math.floor(diffMs / 1000))
-    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0')
-    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0')
+    const m = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
     const s = String(totalSeconds % 60).padStart(2, '0')
-    return `${h}:${m}:${s}`
+    return `${m}:${s}`
   }
 
-  // Calcula tempo congelado entre dois timestamps (para mostrar tempo de espera concluído)
+  // Tempo congelado
   const frozenTime = (startedAt?: string, endedAt?: string): string => {
-    if (!startedAt) return '0 min'
+    if (!startedAt) return '0min'
     const start = parseISO(startedAt)
     const end = endedAt ? parseISO(endedAt) : new Date()
     const diffMs = end.getTime() - start.getTime()
     const totalMinutes = Math.max(0, Math.floor(diffMs / 60000))
-    if (totalMinutes < 60) return `${totalMinutes} min`
-    const h = Math.floor(totalMinutes / 60)
-    const m = totalMinutes % 60
-    return `${h}h ${m}min`
+    if (totalMinutes < 60) return `${totalMinutes}min`
+    return `${Math.floor(totalMinutes / 60)}h${totalMinutes % 60}min`
   }
 
-  // Idade e nascimento
   const formatBirthInfo = (birthDate?: string) => {
     if (!birthDate) return null
     try {
@@ -194,35 +226,16 @@ export default function ClinicFlow() {
     }
   }
 
-  // AGENDADOS = não estão em fluxo + não cancelados/faltaram
+  const formatTime = (time: string) => time.substring(0, 5)
+
+  // Separar agendamentos por coluna
   const scheduledAppts = appointments.filter(a =>
     (!a.flow_status || a.flow_status === 'pending') &&
     a.status !== 'cancelled' &&
-    a.status !== 'no_show' &&
-    a.flow_status !== 'absent'
+    a.status !== 'no_show'
   )
-
   const waitingAppts = appointments.filter(a => a.flow_status === 'waiting')
   const inProgressAppts = appointments.filter(a => a.flow_status === 'in_progress')
-  const cancelledAppts = appointments.filter(a => a.status === 'cancelled' || a.flow_status === 'absent')
-
-  // Aplica filtro lateral
-  const applyFilter = (list: Appointment[]) => {
-    if (filter === 'cancelled') {
-      return cancelledAppts
-    }
-    if (filter === 'kesya') return list
-    return list
-  }
-
-  const formatTime = (time: string) => time.substring(0, 5)
-
-  const toggleExpanded = (id: string, field: 'telefones' | 'info') => {
-    setExpandedDetails(prev => ({
-      ...prev,
-      [id]: { ...prev[id], [field]: !prev[id]?.[field] }
-    }))
-  }
 
   if (loading) {
     return (
@@ -235,7 +248,6 @@ export default function ClinicFlow() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-4">
-
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -255,493 +267,104 @@ export default function ClinicFlow() {
           </div>
         </div>
 
-        {/* Abas */}
-        <div className="bg-white rounded-t-lg border-b-2 border-gray-200">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab('scheduled')}
-              className={`px-6 py-3 font-semibold text-sm transition ${
-                activeTab === 'scheduled'
-                  ? 'text-blue-600 border-b-4 border-blue-600 -mb-0.5 bg-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Agendados Para Hoje
-              {scheduledAppts.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
-                  {scheduledAppts.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('waiting')}
-              className={`px-6 py-3 font-semibold text-sm transition ${
-                activeTab === 'waiting'
-                  ? 'text-blue-600 border-b-4 border-blue-600 -mb-0.5 bg-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Na Sala de Espera
-              {waitingAppts.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 bg-yellow-500 text-white rounded-full text-xs font-bold">
-                  {waitingAppts.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('in_progress')}
-              className={`px-6 py-3 font-semibold text-sm transition ${
-                activeTab === 'in_progress'
-                  ? 'text-blue-600 border-b-4 border-blue-600 -mb-0.5 bg-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Nos Consultórios
-              {inProgressAppts.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 bg-purple-500 text-white rounded-full text-xs font-bold">
-                  {inProgressAppts.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
+        {/* KANBAN: 3 colunas */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        {/* Conteúdo: Sidebar + Lista */}
-        <div className="bg-white rounded-b-lg shadow-sm flex flex-col md:flex-row">
-
-          {/* Sidebar filtros - SÓ na aba Agendados */}
-          {activeTab === 'scheduled' && (
-            <div className="md:w-56 border-b md:border-b-0 md:border-r border-gray-200 p-2">
-              <button
-                onClick={() => setFilter('all')}
-                className={`w-full text-left px-4 py-3 text-sm rounded transition ${
-                  filter === 'all'
-                    ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setFilter('kesya')}
-                className={`w-full text-left px-4 py-3 text-sm rounded transition ${
-                  filter === 'kesya'
-                    ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Dra Késya
-                <span className="ml-2 text-gray-500">({scheduledAppts.length})</span>
-              </button>
-              <button
-                onClick={() => setFilter('cancelled')}
-                className={`w-full text-left px-4 py-3 text-sm rounded transition flex items-center justify-between ${
-                  filter === 'cancelled'
-                    ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span>Desmarcados</span>
-                {cancelledAppts.length > 0 && (
-                  <span className="px-2 py-0.5 bg-red-500 text-white rounded text-xs font-bold">{cancelledAppts.length}</span>
-                )}
-              </button>
-              <button
-                onClick={() => setFilter('pending')}
-                className={`w-full text-left px-4 py-3 text-sm rounded transition flex items-center justify-between ${
-                  filter === 'pending'
-                    ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span>Pendências</span>
-                <span className="px-2 py-0.5 bg-red-500 text-white rounded text-xs font-bold">0</span>
-              </button>
-            </div>
-          )}
-
-          {/* Conteúdo principal */}
-          <div className="flex-1 p-4 md:p-6">
-
-            {/* ===== ABA 1: AGENDADOS PARA HOJE ===== */}
-            {activeTab === 'scheduled' && (
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Agendados Para Hoje</h2>
-
-                {applyFilter(scheduledAppts).length === 0 ? (
-                  <div className="text-center py-16 text-gray-500">
-                    <div className="text-5xl mb-3">📋</div>
-                    <p>Nenhum agendamento para hoje</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {applyFilter(scheduledAppts).map(appt => {
-                      const isConfirmed = appt.status === 'confirmed' || appt.whatsapp_confirmed
-                      const isCancelled = appt.status === 'cancelled'
-                      const patient = appt.patient
-                      const birthInfo = formatBirthInfo(patient?.birth_date)
-                      const exp = expandedDetails[appt.id] || {}
-
-                      return (
-                        <div
-                          key={appt.id}
-                          className="flex border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition"
-                        >
-                          {/* Tag lateral CONFIRMADO/DESMARCADO */}
-                          {(isConfirmed || isCancelled) && (
-                            <div
-                              className={`flex items-center justify-center px-3 ${
-                                isConfirmed ? 'bg-green-600' : 'bg-red-600'
-                              } text-white font-bold text-xs`}
-                              style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-                            >
-                              {isConfirmed ? 'CONFIRMADO' : 'DESMARCADO'}
-                            </div>
-                          )}
-
-                          {/* Conteúdo */}
-                          <div className="flex-1 flex flex-col sm:flex-row p-4 gap-4">
-                            {/* Horário */}
-                            <div className="sm:w-20">
-                              <div className="font-bold text-2xl text-blue-700">
-                                {formatTime(appt.appointment_time)}
-                              </div>
-                              <div className="text-xs text-gray-500 flex items-center gap-1">
-                                <span>⏱️</span>
-                                <span>{String(Math.floor(appt.duration_minutes / 60)).padStart(2, '0')}:{String(appt.duration_minutes % 60).padStart(2, '0')}</span>
-                              </div>
-                            </div>
-
-                            {/* Info paciente */}
-                            <div className="flex-1">
-                              <div className="flex items-start gap-2 flex-wrap">
-                                <span className="font-bold text-blue-700 text-lg">{patient?.name}</span>
-                                {patient?.patient_code && (
-                                  <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-xs font-medium">
-                                    {patient.patient_code}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-sm text-gray-700 mt-1">
-                                <span className="font-semibold">CONSULTÓRIO {appt.room_number || 1}</span>
-                                {' '}
-                                <span className="text-blue-600">Dra Késya, </span>
-                                <span className="text-blue-600">{appt.procedure}</span>
-                              </div>
-                              {appt.observations && (
-                                <div className="text-sm text-gray-500 italic mt-1">
-                                  {appt.observations}
-                                </div>
-                              )}
-
-                              {/* Expansíveis */}
-                              <div className="mt-2 space-y-1">
-                                <button
-                                  onClick={() => toggleExpanded(appt.id, 'telefones')}
-                                  className="text-sm text-gray-700 hover:text-blue-600 flex items-center gap-1"
-                                >
-                                  <span>{exp.telefones ? '▼' : '▶'}</span> Telefones
-                                </button>
-                                {exp.telefones && (
-                                  <div className="ml-4 text-sm text-gray-600">
-                                    📞 {patient?.phone || '—'}
-                                  </div>
-                                )}
-                                <button
-                                  onClick={() => toggleExpanded(appt.id, 'info')}
-                                  className="text-sm text-gray-700 hover:text-blue-600 flex items-center gap-1"
-                                >
-                                  <span>{exp.info ? '▼' : '▶'}</span> Informações Adicionais
-                                </button>
-                                {exp.info && (
-                                  <div className="ml-4 text-sm text-gray-600 space-y-1">
-                                    {birthInfo && <div>🎂 {birthInfo.birthStr} ({birthInfo.age} anos)</div>}
-                                    {patient?.gender && <div>⚧ {patient.gender === 'M' ? 'Masculino' : 'Feminino'}</div>}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Ações */}
-                            <div className="flex sm:flex-col gap-2 items-center sm:items-end">
-                              {!isCancelled && (
-                                <button
-                                  onClick={() => handleCheckIn(appt)}
-                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm flex items-center gap-1 shadow"
-                                >
-                                  ➡️ Chegada
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleNoShow(appt)}
-                                className="text-xs text-red-600 hover:underline"
-                                title="Marcar como falta"
-                              >
-                                Faltou
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-
-                    {/* Rodapé com resumo */}
-                    <div className="mt-6 pt-4 border-t border-gray-200">
-                      <div className="text-sm text-gray-700 space-y-1">
-                        {Object.entries(
-                          applyFilter(scheduledAppts).reduce<{ [proc: string]: number }>((acc, a) => {
-                            acc[a.procedure] = (acc[a.procedure] || 0) + 1
-                            return acc
-                          }, {})
-                        ).map(([proc, count]) => (
-                          <div key={proc} className="border-l-4 border-gray-300 pl-2">
-                            {count} {proc}
-                          </div>
-                        ))}
-                        <div className="border-l-4 border-blue-500 pl-2 font-bold text-gray-900 pt-1">
-                          {applyFilter(scheduledAppts).length} Paciente{applyFilter(scheduledAppts).length !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+          {/* COLUNA 1: AGUARDANDO PARA HOJE */}
+          <ColumnContainer
+            color="blue"
+            title="Aguardando Para Hoje"
+            icon="📅"
+            count={scheduledAppts.length}
+            isDragOver={dragOverColumn === 'scheduled' && draggedAppt !== null && getColumnOf(draggedAppt) !== 'scheduled'}
+            onDragOver={(e) => handleColumnDragOver(e, 'scheduled')}
+            onDrop={() => handleColumnDrop('scheduled')}
+            onDragLeave={() => setDragOverColumn(null)}
+          >
+            {scheduledAppts.length === 0 ? (
+              <EmptyState icon="📅" text="Nenhum agendamento neste filtro" />
+            ) : (
+              scheduledAppts.map(appt => (
+                <ScheduledCard
+                  key={appt.id}
+                  appt={appt}
+                  patient={appt.patient}
+                  birthInfo={formatBirthInfo(appt.patient?.birth_date)}
+                  isDragging={draggedAppt?.id === appt.id}
+                  onDragStart={() => handleDragStart(appt)}
+                  onDragEnd={handleDragEnd}
+                  onCheckIn={() => handleCheckIn(appt)}
+                  formatTime={formatTime}
+                />
+              ))
             )}
+          </ColumnContainer>
 
-            {/* ===== ABA 2: NA SALA DE ESPERA ===== */}
-            {activeTab === 'waiting' && (
-              <div>
-                <h2 className="text-xl font-bold text-blue-700 mb-2">Na Sala de Espera</h2>
-
-                {waitingAppts.length === 0 ? (
-                  <div className="text-center py-16 text-gray-500">
-                    <div className="text-5xl mb-3">🪑</div>
-                    <p>Nenhum paciente na sala de espera</p>
-                  </div>
-                ) : (
-                  <div>
-                    <h3 className="text-lg font-bold text-blue-700 mb-2">Dra Késya</h3>
-                    <button className="text-sm text-gray-600 mb-3 hover:text-gray-900">
-                      ▶ Dados do Dentista
-                    </button>
-
-                    <div className="space-y-4">
-                      {waitingAppts.map(appt => {
-                        const patient = appt.patient
-                        const birthInfo = formatBirthInfo(patient?.birth_date)
-                        const timer = elapsedTime(appt.waiting_at)
-                        const exp = expandedDetails[appt.id] || {}
-
-                        return (
-                          <div key={appt.id} className="border border-gray-300 rounded-lg overflow-hidden">
-                            {/* Header com procedimento e consultório */}
-                            <div className="bg-gray-100 px-4 py-2 text-sm text-gray-700">
-                              <span className="font-medium">{appt.procedure}</span>
-                              <span className="mx-2">→</span>
-                              <span className="font-bold">CONSULTÓRIO {appt.room_number || 1}</span>
-                            </div>
-
-                            {/* Conteúdo */}
-                            <div className="p-4 flex flex-col sm:flex-row gap-4 items-start">
-                              {/* Avatar + cronômetro */}
-                              <div className="flex flex-col items-center gap-2">
-                                <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-3xl">
-                                  👤
-                                </div>
-                                <div className="bg-red-700 text-white font-mono text-xl font-bold px-3 py-1 rounded shadow-inner">
-                                  {timer}
-                                </div>
-                                <div className="text-xs text-gray-600 flex items-center gap-1">
-                                  📅 Agendado para {formatTime(appt.appointment_time)}
-                                </div>
-                              </div>
-
-                              {/* Dados */}
-                              <div className="flex-1">
-                                <div className="font-bold text-blue-700 text-lg">{patient?.name}</div>
-                                <div className="text-sm text-gray-700 flex items-center gap-2 flex-wrap mt-1">
-                                  {patient?.nickname && <span>{patient.gender === 'F' ? 'Sra.' : 'Sr.'} {patient.nickname}</span>}
-                                  {patient?.patient_code && (
-                                    <span className="bg-gray-200 px-2 py-0.5 rounded text-xs">{patient.patient_code}</span>
-                                  )}
-                                  {birthInfo && (
-                                    <>
-                                      <span className="text-gray-500">{birthInfo.age} anos</span>
-                                      <span className="text-gray-500">🎂 ({birthInfo.birthStr})</span>
-                                    </>
-                                  )}
-                                </div>
-
-                                <div className="mt-2 space-y-1">
-                                  <button
-                                    onClick={() => toggleExpanded(appt.id, 'info')}
-                                    className="text-sm text-gray-700 hover:text-blue-600 flex items-center gap-1"
-                                  >
-                                    <span>{exp.info ? '▼' : '▶'}</span> Dados Adicionais
-                                  </button>
-                                  {exp.info && (
-                                    <div className="ml-4 text-sm text-gray-600">
-                                      📞 {patient?.phone || '—'}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {appt.observations && (
-                                  <div className="text-sm text-blue-600 italic mt-2">
-                                    {appt.observations}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Ações */}
-                              <div className="flex flex-col items-end gap-2">
-                                <button
-                                  onClick={() => handleStartAppointment(appt)}
-                                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold text-sm flex items-center gap-1 shadow"
-                                >
-                                  ➡️ Atender
-                                </button>
-                                <div className="flex gap-1 mt-1">
-                                  <button className="w-8 h-8 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100" title="Perfil">
-                                    👤
-                                  </button>
-                                  <button className="w-8 h-8 rounded-full border border-blue-300 text-blue-600 hover:bg-blue-50" title="Comentário">
-                                    💬
-                                  </button>
-                                  <button
-                                    onClick={() => updateFlowStatus(appt.id, 'pending', { waiting_at: null, arrived_at: null })}
-                                    className="w-8 h-8 rounded-full border border-red-300 text-red-600 hover:bg-red-50"
-                                    title="Cancelar check-in"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+          {/* COLUNA 2: EM ESPERA */}
+          <ColumnContainer
+            color="orange"
+            title="Em Espera"
+            icon="🪑"
+            count={waitingAppts.length}
+            isDragOver={dragOverColumn === 'waiting' && draggedAppt !== null && getColumnOf(draggedAppt) !== 'waiting'}
+            onDragOver={(e) => handleColumnDragOver(e, 'waiting')}
+            onDrop={() => handleColumnDrop('waiting')}
+            onDragLeave={() => setDragOverColumn(null)}
+          >
+            {waitingAppts.length === 0 ? (
+              <EmptyState icon="🪑" text="Nenhum Paciente em Espera" />
+            ) : (
+              waitingAppts.map(appt => (
+                <WaitingCard
+                  key={appt.id}
+                  appt={appt}
+                  patient={appt.patient}
+                  birthInfo={formatBirthInfo(appt.patient?.birth_date)}
+                  timer={elapsedTime(appt.waiting_at)}
+                  isDragging={draggedAppt?.id === appt.id}
+                  onDragStart={() => handleDragStart(appt)}
+                  onDragEnd={handleDragEnd}
+                  onStart={() => handleStartAppointment(appt)}
+                  onCancel={() => updateFlowStatus(appt.id, 'pending', { waiting_at: null, arrived_at: null })}
+                  formatTime={formatTime}
+                />
+              ))
             )}
+          </ColumnContainer>
 
-            {/* ===== ABA 3: NOS CONSULTÓRIOS ===== */}
-            {activeTab === 'in_progress' && (
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Nos Consultórios</h2>
-
-                {inProgressAppts.length === 0 ? (
-                  <div className="text-center py-16 text-gray-500">
-                    <div className="text-5xl mb-3">🦷</div>
-                    <p>Nenhum atendimento em andamento</p>
-                  </div>
-                ) : (
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Dra Késya</h3>
-                    <button className="text-sm text-gray-600 mb-3 hover:text-gray-900">
-                      ▶ Dados do Dentista
-                    </button>
-
-                    <div className="space-y-4">
-                      {inProgressAppts.map(appt => {
-                        const patient = appt.patient
-                        const birthInfo = formatBirthInfo(patient?.birth_date)
-                        // Cronômetro do consultório (independente, começa do zero)
-                        const consultTimer = elapsedTime(appt.started_at)
-                        // Tempo de espera CONGELADO (waiting_at → started_at)
-                        const waitedTime = frozenTime(appt.waiting_at, appt.started_at)
-                        const exp = expandedDetails[appt.id] || {}
-
-                        return (
-                          <div key={appt.id} className="border border-gray-300 rounded-lg overflow-hidden">
-                            <div className="bg-gray-100 px-4 py-2 text-sm text-gray-700">
-                              <span className="font-medium">{appt.procedure}</span>
-                              <span className="mx-2">→</span>
-                              <span className="font-bold">CONSULTÓRIO {appt.room_number || 1}</span>
-                            </div>
-
-                            <div className="p-4 flex flex-col sm:flex-row gap-4 items-start">
-                              <div className="flex flex-col items-center gap-2">
-                                <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-3xl">
-                                  👤
-                                </div>
-                                {/* Cronômetro do CONSULTÓRIO - independente, conta desde started_at */}
-                                <div className="bg-red-700 text-white font-mono text-xl font-bold px-3 py-1 rounded shadow-inner">
-                                  {consultTimer}
-                                </div>
-                                {/* Tempo de espera CONGELADO */}
-                                <div className="text-xs text-gray-600 text-center">
-                                  🪑 {waitedTime} na sala
-                                </div>
-                                <div className="text-xs text-gray-500 flex items-center gap-1">
-                                  📅 Agendado para {formatTime(appt.appointment_time)}
-                                </div>
-                              </div>
-
-                              <div className="flex-1">
-                                <div className="font-bold text-blue-700 text-lg">{patient?.name}</div>
-                                <div className="text-sm text-gray-700 flex items-center gap-2 flex-wrap mt-1">
-                                  {patient?.nickname && <span>{patient.gender === 'F' ? 'Sra.' : 'Sr.'} {patient.nickname}</span>}
-                                  {patient?.patient_code && (
-                                    <span className="bg-gray-200 px-2 py-0.5 rounded text-xs">{patient.patient_code}</span>
-                                  )}
-                                  {birthInfo && (
-                                    <>
-                                      <span className="text-gray-500">{birthInfo.age} anos</span>
-                                      <span className="text-gray-500">🎂 ({birthInfo.birthStr})</span>
-                                    </>
-                                  )}
-                                </div>
-
-                                <div className="mt-2 space-y-1">
-                                  <button
-                                    onClick={() => toggleExpanded(appt.id, 'info')}
-                                    className="text-sm text-gray-700 hover:text-blue-600 flex items-center gap-1"
-                                  >
-                                    <span>{exp.info ? '▼' : '▶'}</span> Dados Adicionais
-                                  </button>
-                                  {exp.info && (
-                                    <div className="ml-4 text-sm text-gray-600">
-                                      📞 {patient?.phone || '—'}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {appt.observations && (
-                                  <div className="text-sm text-blue-600 italic mt-2">
-                                    {appt.observations}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Ações */}
-                              <div className="flex flex-col items-end gap-2">
-                                <button
-                                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold text-sm flex items-center gap-1 shadow"
-                                  title="Abrir tela de atendimento (em breve)"
-                                >
-                                  ✏️ Atendimento
-                                </button>
-                                <button
-                                  onClick={() => handleFinish(appt)}
-                                  className="px-4 py-2 bg-white border-2 border-green-600 text-green-700 hover:bg-green-50 rounded-full font-bold text-sm flex items-center gap-1"
-                                >
-                                  ➡️ Concluir
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+          {/* COLUNA 3: EM ATENDIMENTO */}
+          <ColumnContainer
+            color="green"
+            title="Em Atendimento"
+            icon="🩺"
+            count={inProgressAppts.length}
+            isDragOver={dragOverColumn === 'in_progress' && draggedAppt !== null && getColumnOf(draggedAppt) !== 'in_progress'}
+            onDragOver={(e) => handleColumnDragOver(e, 'in_progress')}
+            onDrop={() => handleColumnDrop('in_progress')}
+            onDragLeave={() => setDragOverColumn(null)}
+          >
+            {inProgressAppts.length === 0 ? (
+              <EmptyState icon="🩺" text="Nenhum atendimento em andamento" />
+            ) : (
+              inProgressAppts.map(appt => (
+                <InProgressCard
+                  key={appt.id}
+                  appt={appt}
+                  patient={appt.patient}
+                  birthInfo={formatBirthInfo(appt.patient?.birth_date)}
+                  timer={elapsedTime(appt.started_at)}
+                  waitedTime={frozenTime(appt.waiting_at, appt.started_at)}
+                  isDragging={draggedAppt?.id === appt.id}
+                  onDragStart={() => handleDragStart(appt)}
+                  onDragEnd={handleDragEnd}
+                  onOpen={() => navigate(`/atendimento/${appt.id}`)}
+                  onFinish={() => handleFinish(appt)}
+                  formatTime={formatTime}
+                />
+              ))
             )}
+          </ColumnContainer>
 
-          </div>
         </div>
       </div>
 
@@ -749,23 +372,14 @@ export default function ClinicFlow() {
       {startModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-            {/* Header */}
             <div className="bg-blue-600 text-white px-5 py-3 rounded-t-lg flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <span>➡️</span> Registrar Início do Atendimento
               </h3>
-              <button
-                onClick={() => setStartModal(null)}
-                className="text-white hover:bg-blue-700 rounded p-1"
-              >
-                ✕
-              </button>
+              <button onClick={() => setStartModal(null)} className="text-white hover:bg-blue-700 rounded p-1">✕</button>
             </div>
-
-            {/* Conteúdo */}
             <div className="p-5">
               <h4 className="text-xl font-bold text-blue-700 mb-4">{startModal.patient?.name}</h4>
-
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Dentista</label>
@@ -777,7 +391,6 @@ export default function ClinicFlow() {
                     <option>Dra Késya</option>
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Convênio</label>
                   <select
@@ -788,7 +401,6 @@ export default function ClinicFlow() {
                     <option value="">Particular</option>
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Tipo de Atendimento</label>
                   <select
@@ -808,7 +420,6 @@ export default function ClinicFlow() {
                     <option value="Implante">Implante</option>
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Sala/Consultório</label>
                   <select
@@ -822,7 +433,6 @@ export default function ClinicFlow() {
                 </div>
               </div>
 
-              {/* Toggle */}
               <div className="flex items-center gap-2 mb-2">
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -833,28 +443,201 @@ export default function ClinicFlow() {
                   />
                   <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"></div>
                 </label>
-                <span className="text-sm text-gray-700">Redirecionar para o Atendimento</span>
+                <span className="text-sm text-gray-700">Abrir ficha do atendimento</span>
               </div>
             </div>
-
-            {/* Footer */}
             <div className="border-t border-gray-200 px-5 py-3 flex justify-end gap-2">
-              <button
-                onClick={() => setStartModal(null)}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-medium"
-              >
+              <button onClick={() => setStartModal(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-medium">
                 ✕ Fechar
               </button>
-              <button
-                onClick={handleConfirmStart}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold flex items-center gap-1"
-              >
+              <button onClick={handleConfirmStart} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold flex items-center gap-1">
                 ➡️ Iniciar Atendimento
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ========== COMPONENTES INTERNOS ==========
+
+function ColumnContainer({ color, title, icon, count, isDragOver, children, onDragOver, onDrop, onDragLeave }: any) {
+  const colorMap: { [key: string]: { border: string; bg: string; text: string; ring: string } } = {
+    blue: { border: 'border-blue-500', bg: 'bg-blue-50', text: 'text-blue-700', ring: 'ring-blue-400' },
+    orange: { border: 'border-orange-500', bg: 'bg-orange-50', text: 'text-orange-700', ring: 'ring-orange-400' },
+    green: { border: 'border-green-500', bg: 'bg-green-50', text: 'text-green-700', ring: 'ring-green-400' }
+  }
+  const c = colorMap[color]
+
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragLeave={onDragLeave}
+      className={`bg-white rounded-lg border-t-4 ${c.border} shadow-sm flex flex-col min-h-[500px] transition ${
+        isDragOver ? `ring-4 ${c.ring} bg-opacity-50` : ''
+      }`}
+    >
+      {/* Header da coluna */}
+      <div className={`px-4 py-3 ${c.bg} border-b border-gray-200 flex items-center justify-between rounded-t-lg`}>
+        <div className={`font-bold ${c.text} flex items-center gap-2`}>
+          <span>{icon}</span>
+          <span>{title}</span>
+        </div>
+        <span className={`${c.text} bg-white bg-opacity-80 px-2.5 py-0.5 rounded-full text-sm font-bold`}>
+          {count}
+        </span>
+      </div>
+
+      {/* Lista */}
+      <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({ icon, text }: any) {
+  return (
+    <div className="text-center py-16 text-gray-400">
+      <div className="text-4xl mb-2 opacity-40">{icon}</div>
+      <p className="text-sm">{text}</p>
+    </div>
+  )
+}
+
+function ScheduledCard({ appt, patient, birthInfo, isDragging, onDragStart, onDragEnd, onCheckIn, formatTime }: any) {
+  const isConfirmed = appt.status === 'confirmed' || appt.whatsapp_confirmed
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition cursor-grab active:cursor-grabbing ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <div className="flex items-start gap-2 mb-2">
+        <div className="font-bold text-blue-700 text-base">{formatTime(appt.appointment_time)}</div>
+        <div className="text-xs text-gray-500">({appt.duration_minutes}min)</div>
+        {isConfirmed && (
+          <span className="ml-auto bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">
+            ✓ Confirmado
+          </span>
+        )}
+      </div>
+      <div className="font-bold text-gray-900 text-sm">{patient?.name}</div>
+      {patient?.patient_code && (
+        <div className="text-xs text-gray-500">Cód. {patient.patient_code}</div>
+      )}
+      {birthInfo && (
+        <div className="text-xs text-gray-500">🎂 {birthInfo.age} anos</div>
+      )}
+      <div className="text-xs text-gray-600 mt-1">{appt.procedure}</div>
+      <button
+        onClick={onCheckIn}
+        className="w-full mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center justify-center gap-1"
+      >
+        ➡️ Registrar Chegada
+      </button>
+    </div>
+  )
+}
+
+function WaitingCard({ appt, patient, birthInfo, timer, isDragging, onDragStart, onDragEnd, onStart, onCancel, formatTime }: any) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition cursor-grab active:cursor-grabbing ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs text-gray-600">Agendado: {formatTime(appt.appointment_time)}</div>
+        <div className="bg-orange-100 text-orange-700 font-mono text-sm font-bold px-2 py-0.5 rounded">
+          ⏱️ {timer}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-lg">👤</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-gray-900 text-sm truncate">{patient?.name}</div>
+          <div className="text-xs text-gray-500 flex items-center gap-1">
+            {patient?.patient_code && <span>Cód. {patient.patient_code}</span>}
+            {birthInfo && <span>· {birthInfo.age} anos</span>}
+          </div>
+        </div>
+      </div>
+      <div className="text-xs text-gray-600 mb-2">{appt.procedure}</div>
+      <div className="flex gap-1">
+        <button
+          onClick={onStart}
+          className="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center justify-center gap-1"
+        >
+          ➡️ Atender
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-2 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-600 rounded text-xs"
+          title="Cancelar chegada"
+        >
+          🗑️
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InProgressCard({ appt, patient, birthInfo, timer, waitedTime, isDragging, onDragStart, onDragEnd, onOpen, onFinish, formatTime }: any) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`bg-white border-2 border-green-300 rounded-lg p-3 shadow-sm hover:shadow-md transition cursor-grab active:cursor-grabbing ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <div className="text-xs text-green-700 font-bold mb-2">DRA KÉSYA</div>
+      <div className="flex items-start gap-2 mb-2">
+        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-lg flex-shrink-0">👤</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-gray-900 text-sm">{patient?.name}</div>
+          <div className="text-xs text-gray-500">
+            {patient?.patient_code && `Cód. ${patient.patient_code}`}
+            {birthInfo && ` · ${birthInfo.age} anos`}
+          </div>
+        </div>
+      </div>
+      <div className="text-xs text-gray-600 mb-2">{appt.procedure}</div>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="bg-green-100 text-green-700 font-mono text-sm font-bold px-2 py-0.5 rounded">
+          ⏱️ {timer}
+        </div>
+        <div className="text-xs text-gray-500">🪑 {waitedTime} esperou</div>
+      </div>
+      <div className="text-xs text-gray-500 mb-2">📅 Agendado: {formatTime(appt.appointment_time)}</div>
+      <div className="flex gap-1">
+        <button
+          onClick={onOpen}
+          className="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center justify-center gap-1"
+          title="Abrir ficha do atendimento"
+        >
+          📋 Atendimento
+        </button>
+        <button
+          onClick={onFinish}
+          className="px-3 py-1.5 bg-white border-2 border-green-600 hover:bg-green-50 text-green-700 rounded text-xs font-bold"
+          title="Concluir atendimento"
+        >
+          ✓
+        </button>
+      </div>
     </div>
   )
 }
