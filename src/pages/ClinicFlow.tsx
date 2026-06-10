@@ -60,6 +60,7 @@ export default function ClinicFlow() {
           patient:patients(id, name, patient_code, nickname, phone, birth_date, gender)
         `)
         .eq('appointment_date', today)
+        .is('deleted_at', null)
         .order('appointment_time', { ascending: true })
 
       if (error) throw error
@@ -147,20 +148,24 @@ export default function ClinicFlow() {
     }
   }
 
-  // Filtra agendados (não estão em fluxo ainda)
+  // AGENDADOS = não estão em fluxo + não cancelados/faltaram
   const scheduledAppts = appointments.filter(a =>
-    !a.flow_status || a.flow_status === 'pending'
+    (!a.flow_status || a.flow_status === 'pending') &&
+    a.status !== 'cancelled' &&
+    a.status !== 'no_show' &&
+    a.flow_status !== 'absent'
   )
 
   const waitingAppts = appointments.filter(a => a.flow_status === 'waiting')
   const inProgressAppts = appointments.filter(a => a.flow_status === 'in_progress')
+  const cancelledAppts = appointments.filter(a => a.status === 'cancelled' || a.flow_status === 'absent')
 
   // Aplica filtro lateral
   const applyFilter = (list: Appointment[]) => {
     if (filter === 'cancelled') {
-      return appointments.filter(a => a.status === 'cancelled' || a.flow_status === 'absent')
+      return cancelledAppts
     }
-    if (filter === 'kesya') return list  // Por enquanto todos = Késya
+    if (filter === 'kesya') return list
     return list
   }
 
@@ -284,13 +289,16 @@ export default function ClinicFlow() {
               </button>
               <button
                 onClick={() => setFilter('cancelled')}
-                className={`w-full text-left px-4 py-3 text-sm rounded transition ${
+                className={`w-full text-left px-4 py-3 text-sm rounded transition flex items-center justify-between ${
                   filter === 'cancelled'
                     ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-blue-600'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                Desmarcados
+                <span>Desmarcados</span>
+                {cancelledAppts.length > 0 && (
+                  <span className="px-2 py-0.5 bg-red-500 text-white rounded text-xs font-bold">{cancelledAppts.length}</span>
+                )}
               </button>
               <button
                 onClick={() => setFilter('pending')}

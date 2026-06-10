@@ -18,6 +18,7 @@ export default function Patients() {
       const { data, error } = await supabase
         .from('patients')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -30,19 +31,20 @@ export default function Patients() {
   }
 
   const handleDeletePatient = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este paciente?')) return
+    if (!confirm('Tem certeza que deseja excluir este paciente?\n\nIsso também excluirá todos os agendamentos dele.')) return
 
     try {
-      const { error } = await supabase
-        .from('patients')
-        .delete()
-        .eq('id', id)
+      const { data, error } = await supabase.rpc('soft_delete_patient', {
+        p_patient_id: id
+      })
 
       if (error) throw error
+      if (!data?.ok) throw new Error('Falha ao excluir')
+
       loadPatients()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir:', error)
-      alert('Erro ao excluir paciente')
+      alert(`Erro ao excluir paciente: ${error?.message || 'desconhecido'}`)
     }
   }
 

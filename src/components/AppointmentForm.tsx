@@ -108,6 +108,23 @@ export function AppointmentForm({
 
     try {
       const dateStr = format(date, 'yyyy-MM-dd')
+
+      // VALIDAÇÃO: Verificar conflito de horário
+      const { data: overlapCheck, error: overlapError } = await supabase.rpc('check_appointment_overlap', {
+        p_date: dateStr,
+        p_time: time,
+        p_duration_minutes: parseInt(formData.duration_minutes),
+        p_exclude_id: null
+      })
+
+      if (overlapError) {
+        console.error('Erro ao verificar conflito:', overlapError)
+      } else if (overlapCheck?.has_conflict) {
+        alert(`⚠️ CONFLITO DE HORÁRIO!\n\nJá existe agendamento neste horário:\n👤 ${overlapCheck.patient}\n⏰ ${overlapCheck.time} (${overlapCheck.duration} min)\n\nEscolha outro horário.`)
+        setLoading(false)
+        return
+      }
+
       let patientId = selectedPatient.id
 
       // Se o paciente é novo (temp), criar no banco

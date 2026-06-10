@@ -35,17 +35,18 @@ export default function Appointments() {
     }
   }
 
-  // Excluir agendamento
+  // Excluir agendamento (soft delete)
   const deleteAppt = async (apptId: string) => {
     if (!confirm('Tem certeza que deseja excluir este agendamento?')) return
 
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .delete()
-        .eq('id', apptId)
+      const { data, error } = await supabase.rpc('soft_delete_appointment', {
+        p_appointment_id: apptId
+      })
 
       if (error) throw error
+      if (!data?.ok) throw new Error('Falha ao excluir')
+
       await loadData()
       setActionMenu(null)
     } catch (error: any) {
@@ -60,7 +61,6 @@ export default function Appointments() {
 
     const newDateStr = format(newDate, 'yyyy-MM-dd')
 
-    // Se for o mesmo slot, cancela
     if (draggedAppt.appointment_date === newDateStr &&
         draggedAppt.appointment_time.substring(0, 5) === newTime) {
       setDraggedAppt(null)
@@ -69,6 +69,19 @@ export default function Appointments() {
     }
 
     try {
+      // VALIDAÇÃO: Verificar conflito antes de mover
+      const { data: overlapCheck } = await supabase.rpc('check_appointment_overlap', {
+        p_date: newDateStr,
+        p_time: newTime,
+        p_duration_minutes: draggedAppt.duration_minutes,
+        p_exclude_id: draggedAppt.id
+      })
+
+      if (overlapCheck?.has_conflict) {
+        alert(`⚠️ CONFLITO DE HORÁRIO!\n\nJá existe agendamento neste horário:\n👤 ${overlapCheck.patient}\n⏰ ${overlapCheck.time} (${overlapCheck.duration} min)\n\nEscolha outro horário.`)
+        return
+      }
+
       const { error } = await supabase
         .from('appointments')
         .update({
@@ -107,11 +120,13 @@ export default function Appointments() {
           .select('*')
           .gte('appointment_date', startStr)
           .lte('appointment_date', endStr)
+          .is('deleted_at', null)
           .order('appointment_date', { ascending: true })
           .order('appointment_time', { ascending: true }),
         supabase
           .from('patients')
           .select('*')
+          .is('deleted_at', null)
           .order('name', { ascending: true })
       ])
 
@@ -358,8 +373,24 @@ export default function Appointments() {
                     const isOccupied = isSlotOccupied(day, time, dayAppointments[dayIdx])
                     const isDragTarget = dragOver?.date && isSameDay(dragOver.date, day) && dragOver.time === time
 
+                    // Esconde slot vazio coberto por outro agendamento
                     if (isOccupied && !appt) {
                       return null
+                    }
+
+                    // Se há agendamento mas slot já está coberto por outro (overlap),
+                    // não renderiza o segundo - evita bug visual de "transbordar" para coluna seguinte
+                    if (appt) {
+                      const overlapping = dayAppointments[dayIdx].find(other => {
+                        if (other.id === appt.id) return false
+                        const otherStart = parse(normalizeTime(other.appointment_time), 'HH:mm', new Date())
+                        const otherEnd = new Date(otherStart.getTime() + other.duration_minutes * 60000)
+                        const thisStart = parse(normalizeTime(appt.appointment_time), 'HH:mm', new Date())
+                        return thisStart >= otherStart && thisStart < otherEnd
+                      })
+                      if (overlapping) {
+                        return null
+                      }
                     }
 
                     return (
