@@ -444,6 +444,31 @@ export default function Appointments() {
                                     {patient.phone}
                                   </div>
                                 )}
+                                {appt.status === 'confirmed' && (
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-green-600 text-white text-xs font-bold rounded">
+                                    ✓ CONFIRMADO
+                                  </div>
+                                )}
+                                {appt.status === 'cancelled' && (
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">
+                                    ✕ DESMARCADO
+                                  </div>
+                                )}
+                                {appt.status === 'checked_in' && (
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-yellow-600 text-white text-xs font-bold rounded">
+                                    🪑 NA ESPERA
+                                  </div>
+                                )}
+                                {appt.status === 'in_progress' && (
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded">
+                                    👨‍⚕️ EM ATENDIMENTO
+                                  </div>
+                                )}
+                                {appt.status === 'completed' && (
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-green-700 text-white text-xs font-bold rounded">
+                                    ✅ FINALIZADO
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )
