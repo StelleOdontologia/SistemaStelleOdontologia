@@ -136,7 +136,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // ⭐ EXTRAI O ID DA MENSAGEM CITADA (Reply)
-    const contextInfo = messageObj.extendedTextMessage?.contextInfo
+    // Evolution API coloca contextInfo em data.contextInfo (não em data.message.contextInfo)
+    const contextInfo = data.contextInfo
+      || messageObj.extendedTextMessage?.contextInfo
       || messageObj.contextInfo
       || {}
     const repliedMessageId = contextInfo.stanzaId || contextInfo.quotedMessageId
