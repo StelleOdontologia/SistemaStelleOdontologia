@@ -481,32 +481,32 @@ export default function Appointments() {
                                   setActionMenu({ appt, x: e.clientX, y: e.clientY })
                                 }
                               }}
-                              className={`relative z-10 bg-white border-l-4 ${
-                                appt.status === 'confirmed' ? 'border-green-500' :
-                                appt.status === 'cancelled' ? 'border-red-500' :
-                                appt.status === 'checked_in' ? 'border-yellow-500' :
-                                appt.status === 'in_progress' ? 'border-purple-500' :
-                                appt.status === 'completed' ? 'border-green-700' :
-                                'border-blue-500'
-                              } rounded-sm h-full flex flex-col text-xs overflow-hidden cursor-pointer shadow-sm hover:shadow-md ${
+                              className={`relative z-10 border-l-4 rounded-sm h-full flex flex-col text-xs overflow-hidden cursor-pointer shadow-sm hover:shadow-md ${
+                                appt.status === 'completed' ? 'bg-green-500 text-white border-green-700' :
+                                appt.status === 'cancelled' ? 'bg-red-500 text-white border-red-700' :
+                                appt.status === 'in_progress' ? 'bg-purple-500 text-white border-purple-700' :
+                                appt.status === 'checked_in' ? 'bg-yellow-100 text-gray-900 border-yellow-500' :
+                                appt.status === 'confirmed' ? 'bg-white text-gray-900 border-green-500' :
+                                'bg-white text-gray-900 border-blue-500'
+                              } ${
                                 draggedAppt?.id === appt.id ? 'opacity-50' : ''
                               } ${cancelledShadow ? 'ml-1 mt-1 mr-0 mb-0 shadow-md' : 'm-0.5'} p-1.5`}
                             >
-                              <div className="leading-tight text-gray-900">
+                              <div className="leading-tight">
                                 <div className="font-bold text-xs">
                                   {startTime} a {endTime}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className={`text-xs ${['completed', 'cancelled', 'in_progress'].includes(appt.status) ? 'text-white opacity-80' : 'text-gray-500'}`}>
                                   ({appt.duration_minutes}min)
                                 </div>
                                 <div className="font-bold uppercase text-xs mt-1 truncate">
                                   {patient?.name}
                                   {patient?.patient_code && (
-                                    <span className="text-gray-500 font-normal"> - {patient.patient_code}</span>
+                                    <span className={`font-normal ${['completed', 'cancelled', 'in_progress'].includes(appt.status) ? 'text-white opacity-80' : 'text-gray-500'}`}> - {patient.patient_code}</span>
                                   )}
                                 </div>
                                 {patient?.phone && (
-                                  <div className="text-gray-600 text-xs">
+                                  <div className={`text-xs ${['completed', 'cancelled', 'in_progress'].includes(appt.status) ? 'text-white opacity-80' : 'text-gray-600'}`}>
                                     {patient.phone}
                                   </div>
                                 )}
@@ -516,7 +516,7 @@ export default function Appointments() {
                                   </div>
                                 )}
                                 {appt.status === 'cancelled' && (
-                                  <div className="mt-1 inline-block px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded">
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-white text-red-700 text-xs font-bold rounded">
                                     ✕ DESMARCADO
                                   </div>
                                 )}
@@ -526,12 +526,12 @@ export default function Appointments() {
                                   </div>
                                 )}
                                 {appt.status === 'in_progress' && (
-                                  <div className="mt-1 inline-block px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded">
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-white text-purple-700 text-xs font-bold rounded">
                                     👨‍⚕️ EM ATENDIMENTO
                                   </div>
                                 )}
                                 {appt.status === 'completed' && (
-                                  <div className="mt-1 inline-block px-2 py-0.5 bg-green-700 text-white text-xs font-bold rounded">
+                                  <div className="mt-1 inline-block px-2 py-0.5 bg-white text-green-700 text-xs font-bold rounded">
                                     ✅ FINALIZADO
                                   </div>
                                 )}
