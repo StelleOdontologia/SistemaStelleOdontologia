@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format, parseISO, differenceInYears, differenceInMonths, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PatientCadastralTab } from '@/components/patient/PatientCadastralTab'
+import { PatientPhotoUpload } from '@/components/patient/PatientPhotoUpload'
 
 interface Patient {
   id: string
@@ -171,15 +172,15 @@ export default function PatientDetail() {
         {/* Header com dados do paciente */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 mb-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
-            {/* Foto */}
+            {/* Foto com upload */}
             <div className="flex-shrink-0">
-              {patient.photo_url ? (
-                <img src={patient.photo_url} alt={patient.name} className="w-24 h-24 rounded-full object-cover" />
-              ) : (
-                <div className={`w-24 h-24 rounded-full ${getAvatarColor(patient.name)} flex items-center justify-center text-white text-2xl font-bold`}>
-                  {getInitials(patient.name)}
-                </div>
-              )}
+              <PatientPhotoUpload
+                patientId={patient.id}
+                patientName={patient.name}
+                currentPhotoUrl={patient.photo_url}
+                onUpdate={loadData}
+                size="lg"
+              />
             </div>
 
             {/* Dados */}
