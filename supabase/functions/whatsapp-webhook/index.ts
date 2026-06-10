@@ -1,5 +1,6 @@
 // Edge Function: Webhook do WhatsApp via Evolution API
 // Recebe respostas dos pacientes e atualiza status dos agendamentos
+// REGRA: Paciente DEVE responder à mensagem específica usando "Reply" do WhatsApp
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -12,26 +13,22 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
-// Normaliza telefone: remove tudo que não for número
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '')
 }
 
-// Verifica se é confirmação positiva
 function isConfirmation(text: string): boolean {
   const normalized = text.toLowerCase().trim()
   const positives = ['sim', 's', 'ok', 'confirmar', 'confirmo', 'confirmado', 'yes']
-  return positives.some(p => normalized === p || normalized.startsWith(p + ' '))
+  return positives.some(p => normalized === p || normalized.startsWith(p + ' ') || normalized.startsWith(p + '.'))
 }
 
-// Verifica se é cancelamento
 function isCancellation(text: string): boolean {
   const normalized = text.toLowerCase().trim()
   const negatives = ['nao', 'não', 'n', 'cancelar', 'desmarcar', 'no']
-  return negatives.some(p => normalized === p || normalized.startsWith(p + ' '))
+  return negatives.some(p => normalized === p || normalized.startsWith(p + ' ') || normalized.startsWith(p + '.'))
 }
 
-// Envia mensagem via Evolution API
 async function sendWhatsAppMessage(
   apiUrl: string,
   apiKey: string,
@@ -72,7 +69,7 @@ Deno.serve(async (req: Request) => {
 
     const event = payload.event || payload.eventType
     if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
-      return new Response(JSON.stringify({ ok: true, ignored: true }), {
+      return new Response(JSON.stringify({ ok: true, ignored: 'event' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
@@ -80,17 +77,19 @@ Deno.serve(async (req: Request) => {
     const data = payload.data || payload
     const key = data.key || {}
 
+    // Ignora mensagens enviadas POR nós
     if (key.fromMe) {
       return new Response(JSON.stringify({ ok: true, ignored: 'fromMe' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    const message = data.message || {}
-    const messageText = message.conversation
-      || message.extendedTextMessage?.text
-      || message.imageMessage?.caption
-      || ''
+    // Extrai texto da mensagem
+    const messageObj = data.message || {}
+    const conversation = messageObj.conversation
+    const extendedText = messageObj.extendedTextMessage?.text
+    const imageCaption = messageObj.imageMessage?.caption
+    const messageText = conversation || extendedText || imageCaption || ''
 
     if (!messageText) {
       return new Response(JSON.stringify({ ok: true, ignored: 'no text' }), {
@@ -98,6 +97,7 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Extrai telefone do remetente
     const remoteJid = key.remoteJid || ''
     const phoneRaw = remoteJid.split('@')[0]
     const phoneNormalized = normalizePhone(phoneRaw)
@@ -107,103 +107,159 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Mensagem de ${phoneShort}: ${messageText}`)
 
-    const { data: patients } = await supabase
-      .from('patients')
-      .select('*')
-
-    const patient = patients?.find((p: any) => {
-      if (!p.phone) return false
-      const dbPhone = normalizePhone(p.phone)
-      return dbPhone.endsWith(phoneShort) || phoneShort.endsWith(dbPhone)
-    })
-
-    if (!patient) {
-      console.log('Paciente não encontrado:', phoneShort)
-      await supabase.from('message_logs').insert([{
-        message_text: messageText,
-        phone_from: phoneShort,
-        message_type: 'received',
-        status: 'no_patient',
-        raw_payload: payload
-      }])
-      return new Response(JSON.stringify({ ok: true, ignored: 'no patient' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const today = new Date().toISOString().split('T')[0]
-    const { data: appointments } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('patient_id', patient.id)
-      .gte('appointment_date', today)
-      .in('status', ['scheduled'])
-      .order('appointment_date', { ascending: true })
-      .order('appointment_time', { ascending: true })
-      .limit(1)
-
-    const appointment = appointments?.[0]
-
-    if (!appointment) {
-      console.log('Sem agendamento pendente para:', patient.name)
-      await supabase.from('message_logs').insert([{
-        patient_id: patient.id,
-        message_text: messageText,
-        phone_from: phoneShort,
-        message_type: 'received',
-        status: 'no_appointment',
-        raw_payload: payload
-      }])
-      return new Response(JSON.stringify({ ok: true, ignored: 'no appointment' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
+    // Busca configurações
     const { data: config } = await supabase.from('whatsapp_config').select('*').limit(1).single()
-    const { data: policy } = await supabase.from('message_policies').select('*').eq('policy_type', 'next_day_reminder').limit(1).single()
+    const { data: policy } = await supabase
+      .from('message_policies')
+      .select('*')
+      .eq('policy_type', 'next_day_reminder')
+      .limit(1)
+      .single()
 
-    let newStatus: string | null = null
-    let responseMessage = ''
+    // Detecta se é SIM ou NÃO
+    const isConfirm = isConfirmation(messageText)
+    const isCancel = isCancellation(messageText)
 
-    if (isConfirmation(messageText)) {
-      newStatus = 'confirmed'
-      responseMessage = policy?.confirmation_response || 'Obrigado! Sua consulta foi confirmada. ✅'
-    } else if (isCancellation(messageText)) {
-      newStatus = 'cancelled'
-      responseMessage = policy?.cancellation_response || 'Entendido. Sua consulta foi desmarcada. Entre em contato para reagendar.'
+    // Se não é SIM nem NÃO, ignora
+    if (!isConfirm && !isCancel) {
+      console.log('Mensagem não reconhecida como confirmação')
+      await supabase.from('message_logs').insert([{
+        message_text: messageText,
+        phone_from: phoneShort,
+        message_type: 'received',
+        status: 'unrecognized',
+        raw_payload: payload
+      }])
+      return new Response(JSON.stringify({ ok: true, ignored: 'not yes/no' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
-    if (newStatus && appointment) {
-      await supabase
-        .from('appointments')
-        .update({
-          status: newStatus,
-          confirmation_status: newStatus,
-          whatsapp_confirmed: newStatus === 'confirmed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', appointment.id)
+    // ⭐ EXTRAI O ID DA MENSAGEM CITADA (Reply)
+    const contextInfo = messageObj.extendedTextMessage?.contextInfo
+      || messageObj.contextInfo
+      || {}
+    const repliedMessageId = contextInfo.stanzaId || contextInfo.quotedMessageId
 
-      console.log(`Agendamento ${appointment.id} atualizado para ${newStatus}`)
+    console.log('repliedMessageId:', repliedMessageId)
 
-      if (config && responseMessage) {
+    // Se NÃO usou Reply, envia instrução
+    if (!repliedMessageId) {
+      console.log('Resposta sem Reply - enviando instrução')
+
+      const instructionMessage = `⚠️ Para confirmar sua consulta, por favor:
+
+1️⃣ Segure a mensagem do paciente
+2️⃣ Toque em "Responder"
+3️⃣ Digite SIM ou NÃO
+
+Assim conseguimos identificar qual consulta você quer confirmar. 🙏
+
+${config?.clinic_name || 'Stelle Odontologia'}`
+
+      if (config) {
         await sendWhatsAppMessage(
           config.evolution_api_url,
           config.evolution_api_key,
           config.instance_name,
           phoneRaw,
-          responseMessage
+          instructionMessage
         )
       }
+
+      await supabase.from('message_logs').insert([{
+        message_text: messageText,
+        phone_from: phoneShort,
+        message_type: 'received',
+        status: 'no_reply_context',
+        raw_payload: payload
+      }])
+
+      return new Response(JSON.stringify({ ok: true, action: 'sent_instructions' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
+    // ⭐ BUSCA QUAL AGENDAMENTO TINHA AQUELE message_id
+    const { data: originalLog } = await supabase
+      .from('message_logs')
+      .select('*, appointment:appointments(*, patient:patients(*))')
+      .eq('whatsapp_message_id', repliedMessageId)
+      .limit(1)
+      .single()
+
+    if (!originalLog || !originalLog.appointment) {
+      console.log('Mensagem original não encontrada para ID:', repliedMessageId)
+      await supabase.from('message_logs').insert([{
+        message_text: messageText,
+        phone_from: phoneShort,
+        message_type: 'received',
+        status: 'message_not_found',
+        raw_payload: payload
+      }])
+
+      // Envia mensagem genérica
+      if (config) {
+        await sendWhatsAppMessage(
+          config.evolution_api_url,
+          config.evolution_api_key,
+          config.instance_name,
+          phoneRaw,
+          'Não encontramos a consulta referenciada. Por favor, entre em contato com a clínica.'
+        )
+      }
+
+      return new Response(JSON.stringify({ ok: true, ignored: 'no original message' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    const appointment = (originalLog as any).appointment
+    const patient = appointment.patient
+    const newStatus = isConfirm ? 'confirmed' : 'cancelled'
+
+    // Atualiza agendamento
+    await supabase
+      .from('appointments')
+      .update({
+        status: newStatus,
+        confirmation_status: newStatus,
+        whatsapp_confirmed: isConfirm,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointment.id)
+
+    console.log(`✅ Agendamento ${appointment.id} (${patient.name}) → ${newStatus}`)
+
+    // Monta resposta personalizada
+    let responseMessage = ''
+    if (isConfirm) {
+      const template = policy?.confirmation_response || 'Obrigado, #paciente! Sua consulta foi confirmada. ✅'
+      responseMessage = template.replace(/#paciente/g, patient.name.split(' ')[0])
+    } else {
+      const template = policy?.cancellation_response || 'Entendido, #paciente. Sua consulta foi desmarcada. Entre em contato para reagendar.'
+      responseMessage = template.replace(/#paciente/g, patient.name.split(' ')[0])
+    }
+
+    // Envia resposta automática
+    if (config) {
+      await sendWhatsAppMessage(
+        config.evolution_api_url,
+        config.evolution_api_key,
+        config.instance_name,
+        phoneRaw,
+        responseMessage
+      )
+    }
+
+    // Salva log
     await supabase.from('message_logs').insert([{
       patient_id: patient.id,
       appointment_id: appointment.id,
       message_text: messageText,
       phone_from: phoneShort,
       message_type: 'received',
-      status: newStatus || 'no_action',
+      status: newStatus,
       raw_payload: payload
     }])
 
