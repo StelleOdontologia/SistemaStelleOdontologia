@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { AccountsReceivableGlobal } from '@/components/financial/AccountsReceivableGlobal'
 import { FinancialDashboard } from '@/components/financial/FinancialDashboard'
+import { ReceiptsPanel } from '@/components/financial/ReceiptsPanel'
 
 type Section =
   | 'dashboard'
   | 'faturamento'
   | 'contas_receber'
+  | 'recebimentos'
   | 'contas_pagar'
   | 'fluxo_caixa'
   | 'comissionamentos'
@@ -21,6 +23,7 @@ export default function Financial() {
     { id: 'dashboard', label: 'Dashboard', icon: '📊', available: true },
     { id: 'faturamento', label: 'Faturamento', icon: '🧾', available: false },
     { id: 'contas_receber', label: 'Contas a Receber', icon: '💰', available: true },
+    { id: 'recebimentos', label: 'Recebimentos', icon: '💵', available: true },
     { id: 'contas_pagar', label: 'Contas a Pagar', icon: '💸', available: false },
     { id: 'fluxo_caixa', label: 'Fluxo de Caixa', icon: '📈', available: false },
     { id: 'comissionamentos', label: 'Comissionamentos', icon: '💼', available: false },
@@ -66,7 +69,8 @@ export default function Financial() {
           <main className="flex-1 min-w-0">
             {section === 'dashboard' && <FinancialDashboard />}
             {section === 'contas_receber' && <AccountsReceivableGlobal />}
-            {!['dashboard', 'contas_receber'].includes(section) && (
+            {section === 'recebimentos' && <ReceiptsPanel />}
+            {!['dashboard', 'contas_receber', 'recebimentos'].includes(section) && (
               <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
                 <div className="text-5xl mb-3 opacity-40">🚧</div>
                 <p className="text-gray-500 font-medium">Esta seção está em desenvolvimento</p>
