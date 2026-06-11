@@ -207,7 +207,10 @@ export default function Attendance() {
 
   const patient = appointment.patient
   const birthInfo = formatBirthFull(patient?.birth_date)
-  const consultTimer = elapsedTime(appointment.started_at)
+  const isCompleted = appointment.status === 'completed' || appointment.flow_status === 'completed'
+  const consultTimer = isCompleted
+    ? frozenTime(appointment.started_at, (appointment as any).completed_at)
+    : elapsedTime(appointment.started_at)
   const waitedMinutes = frozenMinutes(appointment.waiting_at, appointment.started_at)
 
   const tabs: { id: TabType; label: string; available: boolean }[] = [
@@ -268,17 +271,22 @@ export default function Attendance() {
               </div>
             </div>
 
-            {/* Cronômetro + concluir */}
+            {/* Cronômetro + ações */}
             <div className="flex flex-col items-center gap-2 sm:w-64">
-              <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 w-full text-center">
-                <div className="text-3xl font-mono font-bold text-gray-900">
+              <div className={`border rounded-lg p-3 w-full text-center ${isCompleted ? 'bg-green-50 border-green-300' : 'bg-gray-100 border-gray-300'}`}>
+                <div className={`text-3xl font-mono font-bold ${isCompleted ? 'text-green-700' : 'text-gray-900'}`}>
                   {consultTimer}
                 </div>
                 <div className="text-xs text-gray-600 mt-1">
-                  {waitedMinutes > 0 ? `${waitedMinutes} minutos na Sala de Espera` : 'Sem espera'}
+                  {isCompleted ? '✅ Atendimento concluído' : waitedMinutes > 0 ? `${waitedMinutes} min na Sala de Espera` : 'Sem espera'}
                 </div>
               </div>
-              {!confirmingFinish ? (
+
+              {isCompleted ? (
+                <div className="w-full px-4 py-3 bg-green-100 border border-green-400 text-green-800 rounded-lg font-bold text-sm text-center">
+                  ✅ Consulta Finalizada
+                </div>
+              ) : !confirmingFinish ? (
                 <button
                   onClick={() => setConfirmingFinish(true)}
                   disabled={saving}
@@ -308,6 +316,7 @@ export default function Attendance() {
                   </div>
                 </div>
               )}
+
               <div className="text-xs text-gray-600 w-full bg-gray-50 border border-gray-200 rounded p-2">
                 <div><strong>Procedimento:</strong> {appointment.procedure}</div>
                 <div><strong>Dentista:</strong> Dra Késya</div>
@@ -364,14 +373,21 @@ export default function Attendance() {
                 <h3 className="font-bold text-xl text-gray-900 mb-3">Desenvolvimento Clínico</h3>
                 <textarea
                   value={clinicalNotes}
-                  onChange={(e) => setClinicalNotes(e.target.value)}
+                  onChange={(e) => !isCompleted && setClinicalNotes(e.target.value)}
+                  readOnly={isCompleted}
                   placeholder="Descreva aqui um resumo sobre este atendimento..."
                   rows={12}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400 resize-y"
+                  className={`w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 resize-y ${
+                    isCompleted
+                      ? 'bg-gray-50 border-gray-200 cursor-default'
+                      : 'border-gray-300 focus:outline-none focus:border-blue-500'
+                  }`}
                 />
-                <div className="text-xs text-gray-500 mt-1 italic">
-                  💡 O texto será salvo definitivamente ao clicar em "Concluir Atendimento"
-                </div>
+                {!isCompleted && (
+                  <div className="text-xs text-gray-500 mt-1 italic">
+                    💡 O texto será salvo definitivamente ao clicar em "Concluir Atendimento"
+                  </div>
+                )}
 
                 {/* Histórico do paciente */}
                 {history.length > 0 && (
