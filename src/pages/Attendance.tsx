@@ -138,15 +138,24 @@ export default function Attendance() {
       }
 
       // Marca agendamento como completed
-      const { error: apptError } = await supabase
+      const { data: updatedRows, error: apptError } = await supabase
         .from('appointments')
         .update({
           flow_status: 'completed',
           status: 'completed'
         })
         .eq('id', appointment.id)
+        .select()
 
       if (apptError) throw apptError
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error('Nenhuma linha atualizada — possível bloqueio de RLS ou ID inválido. Verifique permissões no Supabase.')
+      }
+      // Confirma que o status realmente mudou no banco
+      const updated = updatedRows[0]
+      if (updated.status !== 'completed' || updated.flow_status !== 'completed') {
+        throw new Error(`Banco rejeitou os valores: status=${updated.status}, flow_status=${updated.flow_status}`)
+      }
 
       navigate('/fluxo')
     } catch (error: any) {
