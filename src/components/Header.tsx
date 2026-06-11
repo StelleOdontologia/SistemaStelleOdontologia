@@ -13,7 +13,8 @@ export function Header() {
     { path: '/agendamentos', label: 'Agendamentos', icon: '📅' },
     { path: '/fluxo', label: 'Fluxo', icon: '⏱️' },
     { path: '/financeiro', label: 'Financeiro', icon: '💰' },
-    { path: '/configuracoes', label: 'Configurações', icon: '⚙️' }
+    { path: '/administracao', label: 'Administração', icon: '⚙️' },
+    { path: '/configuracoes', label: 'Configurações', icon: '🔧' }
   ]
 
   return (
