@@ -80,3 +80,21 @@ DROP TRIGGER IF EXISTS trg_receipt_marks_paid ON receipts;
 CREATE TRIGGER trg_receipt_marks_paid
 AFTER INSERT ON receipts
 FOR EACH ROW EXECUTE FUNCTION mark_receivable_paid();
+
+-- Adicionar colunas de NFS-e
+ALTER TABLE receipts
+  ADD COLUMN IF NOT EXISTS invoice_id VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS invoice_access_key VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS invoice_rps_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS invoice_url TEXT,
+  ADD COLUMN IF NOT EXISTS invoice_xml_url TEXT,
+  ADD COLUMN IF NOT EXISTS invoice_pdf_url TEXT,
+  ADD COLUMN IF NOT EXISTS invoice_error TEXT,
+  ADD COLUMN IF NOT EXISTS invoice_emitted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS invoice_verified_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS invoice_cancelled_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_receipts_invoice_status ON receipts(invoice_status) WHERE invoice_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_receipts_invoice_emitted ON receipts(invoice_emitted_at) WHERE invoice_emitted_at IS NOT NULL;

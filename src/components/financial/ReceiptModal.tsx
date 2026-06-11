@@ -367,16 +367,9 @@ export function ReceiptModal({ receivable, patientName, onProcessed, onClose }: 
         </div>
       </div>
 
-      {showCompleted && (
+      {showCompleted && savedReceiptId && (
         <ReceiptCompletedModal
-          onEmitInvoice={async () => {
-            // Marca o recebimento como "nota solicitada" — a integração com SEFAZ é o próximo passo
-            if (savedReceiptId) {
-              await supabase.from('receipts').update({
-                invoice_status: 'solicitada'
-              }).eq('id', savedReceiptId)
-            }
-          }}
+          receiptId={savedReceiptId}
           onPrintReceipt={() => {
             window.print()
           }}
