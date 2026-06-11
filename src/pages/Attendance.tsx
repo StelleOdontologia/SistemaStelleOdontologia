@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { format, parseISO, differenceInYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -24,6 +24,7 @@ interface AppointmentData {
     phone?: string
     birth_date?: string
     gender?: string
+    photo_url?: string
   }
 }
 
@@ -42,6 +43,8 @@ type TabType = 'clinical' | 'treatment' | 'planning' | 'budget' | 'contract' | '
 export default function Attendance() {
   const { id: appointmentId } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = (location.state as any)?.returnTo as string | undefined
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [appointment, setAppointment] = useState<AppointmentData | null>(null)
@@ -67,7 +70,7 @@ export default function Attendance() {
         .from('appointments')
         .select(`
           *,
-          patient:patients(id, name, patient_code, nickname, phone, birth_date, gender)
+          patient:patients(id, name, patient_code, nickname, phone, birth_date, gender, photo_url)
         `)
         .eq('id', appointmentId)
         .single()
@@ -157,7 +160,7 @@ export default function Attendance() {
         throw new Error(`Banco rejeitou os valores: status=${updated.status}, flow_status=${updated.flow_status}`)
       }
 
-      navigate('/fluxo')
+      navigate(returnTo || '/fluxo')
     } catch (error: any) {
       console.error('Erro ao salvar:', error)
       setFinishError(error?.message || error?.details || JSON.stringify(error) || 'Erro desconhecido')
@@ -247,10 +250,10 @@ export default function Attendance() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         {/* Voltar */}
         <button
-          onClick={() => navigate('/fluxo')}
+          onClick={() => navigate(returnTo || '/fluxo')}
           className="mb-3 text-sm text-blue-600 hover:underline flex items-center gap-1"
         >
-          ← Voltar ao Fluxo
+          ← {returnTo ? 'Voltar ao Prontuário' : 'Voltar ao Fluxo'}
         </button>
 
         {/* Header com dados do paciente */}
@@ -263,8 +266,12 @@ export default function Attendance() {
           <div className="p-5 flex flex-col md:flex-row gap-5">
             {/* Foto + nome + dados */}
             <div className="flex gap-4 flex-1">
-              <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-4xl flex-shrink-0">
-                👤
+              <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-4xl flex-shrink-0 overflow-hidden">
+                {patient?.photo_url ? (
+                  <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span>👤</span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-blue-700 text-xl">{patient?.name}</h2>
@@ -294,6 +301,11 @@ export default function Attendance() {
             {/* Cronômetro + ações */}
             <div className="flex flex-col items-center gap-2 sm:w-64">
               <div className={`border rounded-lg p-3 w-full text-center ${isCompleted ? 'bg-green-50 border-green-300' : 'bg-gray-100 border-gray-300'}`}>
+                {isCompleted && (
+                  <div className="text-sm font-bold text-green-800 mb-1">
+                    📅 {format(parseISO(appointment.appointment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  </div>
+                )}
                 <div className={`text-3xl font-mono font-bold ${isCompleted ? 'text-green-700' : 'text-gray-900'}`}>
                   {consultTimer}
                 </div>

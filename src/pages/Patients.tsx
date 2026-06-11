@@ -335,8 +335,12 @@ export default function Patients() {
                       className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition cursor-pointer bg-white"
                       onClick={() => navigate(`/pacientes/${patient.id}`)}
                     >
-                      <div className={`w-12 h-12 rounded-full ${avatarColor} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
-                        {initials}
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden ${patient.photo_url ? 'bg-gray-200' : avatarColor}`}>
+                        {patient.photo_url ? (
+                          <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" />
+                        ) : (
+                          initials
+                        )}
                       </div>
 
                       <div className="flex-1 min-w-0">

@@ -235,7 +235,7 @@ export default function PatientDetail() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => navigate(`/atendimento/${lastAppt.appointment_id}`)}
+                onClick={() => navigate(`/atendimento/${lastAppt.appointment_id}`, { state: { returnTo: `/pacientes/${patient.id}` } })}
                 className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded text-sm font-medium flex items-center gap-1"
               >
                 <span>↗</span> Acessar

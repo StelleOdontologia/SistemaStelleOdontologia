@@ -148,7 +148,7 @@ export function PatientClinicalTab({ patientId }: Props) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          navigate(`/atendimento/${rec.appointment_id}`)
+                          navigate(`/atendimento/${rec.appointment_id}`, { state: { returnTo: `/pacientes/${patientId}` } })
                         }}
                         className="text-xs text-blue-600 hover:underline px-2 py-1 rounded hover:bg-blue-50"
                         title="Abrir atendimento"
