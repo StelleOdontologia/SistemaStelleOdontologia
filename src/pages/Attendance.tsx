@@ -119,8 +119,7 @@ export default function Attendance() {
         patient_id: appointment.patient_id,
         procedure: appointment.procedure,
         clinical_notes: clinicalNotes,
-        record_date: appointment.appointment_date,
-        updated_at: new Date().toISOString()
+        record_date: appointment.appointment_date
       }
 
       if (currentRecord) {
@@ -136,14 +135,12 @@ export default function Attendance() {
         if (error) throw error
       }
 
-      // Marca agendamento como completed e registra hora de conclusão (usado para estatísticas)
-      // Os campos waiting_at, started_at e completed_at preservam os timestamps completos
+      // Marca agendamento como completed
       const { error: apptError } = await supabase
         .from('appointments')
         .update({
           flow_status: 'completed',
-          status: 'completed',
-          completed_at: new Date().toISOString()
+          status: 'completed'
         })
         .eq('id', appointment.id)
 
