@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { format, parseISO, differenceInYears, differenceInMonths, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PatientCadastralTab } from '@/components/patient/PatientCadastralTab'
+import { PatientClinicalTab } from '@/components/patient/PatientClinicalTab'
 import { PatientPhotoUpload } from '@/components/patient/PatientPhotoUpload'
 
 interface Patient {
@@ -148,7 +149,7 @@ export default function PatientDetail() {
 
   const mainTabs: { id: MainTab; label: string; icon: string; available: boolean }[] = [
     { id: 'cadastral', label: 'Dados Cadastrais', icon: '👤', available: true },
-    { id: 'clinical', label: 'Dados Clínicos', icon: '🦷', available: false },
+    { id: 'clinical', label: 'Dados Clínicos', icon: '🦷', available: true },
     { id: 'crm', label: 'CRM', icon: '📊', available: false },
     { id: 'history', label: 'Histórico', icon: '📋', available: false },
     { id: 'financial', label: 'Financeiro', icon: '💰', available: false }
@@ -273,7 +274,10 @@ export default function PatientDetail() {
             {activeTab === 'cadastral' && (
               <PatientCadastralTab patient={patient} onUpdate={loadData} />
             )}
-            {activeTab !== 'cadastral' && (
+            {activeTab === 'clinical' && (
+              <PatientClinicalTab patientId={patient.id} />
+            )}
+            {activeTab !== 'cadastral' && activeTab !== 'clinical' && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-5xl mb-3 opacity-40">🚧</div>
                 <p>Funcionalidade em breve</p>
