@@ -51,6 +51,7 @@ export default function Attendance() {
   const [activeTab, setActiveTab] = useState<TabType>('clinical')
   const [now, setNow] = useState(new Date())
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null)
+  const [confirmingFinish, setConfirmingFinish] = useState(false)
 
   useEffect(() => {
     if (appointmentId) loadData()
@@ -109,7 +110,6 @@ export default function Attendance() {
 
   const handleFinish = async () => {
     if (!appointment) return
-    if (!confirm('Concluir atendimento? O texto será salvo definitivamente.')) return
 
     setSaving(true)
     try {
@@ -275,14 +275,36 @@ export default function Attendance() {
                   {waitedMinutes > 0 ? `${waitedMinutes} minutos na Sala de Espera` : 'Sem espera'}
                 </div>
               </div>
-              <button
-                onClick={handleFinish}
-                disabled={saving}
-                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-md"
-              >
-                <span>⚙️</span>
-                {saving ? 'Salvando...' : 'Concluir Atendimento'}
-              </button>
+              {!confirmingFinish ? (
+                <button
+                  onClick={() => setConfirmingFinish(true)}
+                  disabled={saving}
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-md"
+                >
+                  <span>⚙️</span>
+                  Concluir Atendimento
+                </button>
+              ) : (
+                <div className="w-full space-y-2">
+                  <p className="text-sm text-gray-700 text-center font-medium">Confirmar conclusão?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleFinish}
+                      disabled={saving}
+                      className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-bold text-sm"
+                    >
+                      {saving ? 'Salvando...' : '✓ Sim, concluir'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingFinish(false)}
+                      disabled={saving}
+                      className="flex-1 px-3 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg font-bold text-sm"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="text-xs text-gray-600 w-full bg-gray-50 border border-gray-200 rounded p-2">
                 <div><strong>Procedimento:</strong> {appointment.procedure}</div>
                 <div><strong>Dentista:</strong> Dra Késya</div>
