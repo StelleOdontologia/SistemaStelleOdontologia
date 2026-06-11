@@ -217,8 +217,19 @@ export default function Attendance() {
   const patient = appointment.patient
   const birthInfo = formatBirthFull(patient?.birth_date)
   const isCompleted = appointment.status === 'completed' || appointment.flow_status === 'completed'
+  const completedAt = (appointment as any).completed_at as string | undefined
+  const frozenTimer = (startedAt?: string, endedAt?: string): string => {
+    if (!startedAt) return '00:00:00'
+    const start = parseISO(startedAt)
+    const end = endedAt ? parseISO(endedAt) : new Date()
+    const totalSeconds = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000))
+    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0')
+    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0')
+    const s = String(totalSeconds % 60).padStart(2, '0')
+    return `${h}:${m}:${s}`
+  }
   const consultTimer = isCompleted
-    ? frozenTime(appointment.started_at, (appointment as any).completed_at)
+    ? frozenTimer(appointment.started_at, completedAt)
     : elapsedTime(appointment.started_at)
   const waitedMinutes = frozenMinutes(appointment.waiting_at, appointment.started_at)
 
