@@ -137,15 +137,15 @@ export default function Attendance() {
       }
 
       // Marca agendamento como completed
-      await supabase
+      const { error: apptError } = await supabase
         .from('appointments')
         .update({
           flow_status: 'completed',
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          status: 'completed'
         })
         .eq('id', appointment.id)
+
+      if (apptError) throw apptError
 
       navigate('/fluxo')
     } catch (error: any) {
