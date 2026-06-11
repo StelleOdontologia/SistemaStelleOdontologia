@@ -76,7 +76,7 @@ function Row({ label, value, editing, onChange, placeholder, highlight }: any) {
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full px-2 py-1 border rounded text-sm ${highlight ? 'border-green-300 bg-green-50' : 'border-gray-300'}`}
+            className={`w-full px-2 py-1 border rounded text-sm text-gray-900 placeholder-gray-400 ${highlight ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-white'}`}
           />
         )}
       </div>

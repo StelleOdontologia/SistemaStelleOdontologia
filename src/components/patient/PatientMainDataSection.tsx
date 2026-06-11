@@ -109,7 +109,7 @@ function FieldRow({ label, value, editing, onChange, type = 'text', rawValue, re
           <select
             value={rawValue}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
           >
             <option value="M">Masculino</option>
             <option value="F">Feminino</option>
@@ -118,7 +118,7 @@ function FieldRow({ label, value, editing, onChange, type = 'text', rawValue, re
           <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
           >
             <option value="">—</option>
             <option value="Solteiro(a)">Solteiro(a)</option>
@@ -139,7 +139,7 @@ function FieldRow({ label, value, editing, onChange, type = 'text', rawValue, re
             type={type}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
             required={required}
           />
         )}

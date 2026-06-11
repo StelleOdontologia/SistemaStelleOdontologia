@@ -305,7 +305,7 @@ export function PatientRelationshipsSection({ patient }: Props) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={`Digite ${searchFilter === 'name' ? 'o nome' : searchFilter === 'cpf' ? 'o CPF' : 'o telefone'}...`}
-                  className="w-full mt-3 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  className="w-full mt-3 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 bg-white text-gray-900 placeholder-gray-400"
                   autoFocus
                 />
 
@@ -325,7 +325,7 @@ export function PatientRelationshipsSection({ patient }: Props) {
                             {p.patient_code && <span className="text-xs text-gray-500">{p.patient_code}</span>}
                             <span className="font-bold text-sm text-gray-900">{p.nickname || p.name.split(' ')[0]}</span>
                           </div>
-                          <div className="text-xs text-gray-600 truncate">
+                          <div className="text-xs text-gray-700 truncate font-medium">
                             {p.name}
                             {p.birth_date && ` · ${format(parseISO(p.birth_date), 'dd/MM/yyyy')}`}
                             {p.cpf && ` · ${p.cpf}`}
@@ -396,7 +396,7 @@ export function PatientRelationshipsSection({ patient }: Props) {
                 <select
                   value={relationshipType}
                   onChange={(e) => setRelationshipType(e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500 text-gray-900"
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-blue-500 bg-white text-gray-900"
                 >
                   {RELATIONSHIP_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
