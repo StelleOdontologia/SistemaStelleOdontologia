@@ -42,6 +42,7 @@ interface Props {
   patientId: string
   patientName: string
   budgetType: BudgetType
+  editBudgetId?: string
   onSaved: () => void
   onClose: () => void
 }
@@ -53,7 +54,7 @@ const TYPE_LABELS: Record<BudgetType, string> = {
   empresa_conv: 'Empresa Conv'
 }
 
-export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, onClose }: Props) {
+export function BudgetFormModal({ patientId, patientName, budgetType, editBudgetId, onSaved, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('geral')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -113,6 +114,55 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
 
   const installmentsSum = installments.reduce((acc, p) => acc + (p.amount || 0), 0)
 
+  // Carrega dados ao editar
+  const [loadedEdit, setLoadedEdit] = useState(false)
+  useEffect(() => {
+    if (!editBudgetId || loadedEdit) return
+    (async () => {
+      const [b, it, ins] = await Promise.all([
+        supabase.from('budgets').select('*').eq('id', editBudgetId).single(),
+        supabase.from('budget_items').select('*').eq('budget_id', editBudgetId).order('position'),
+        supabase.from('budget_installments').select('*').eq('budget_id', editBudgetId).order('position')
+      ])
+      if (b.data) {
+        setForm({
+          title: b.data.title || '',
+          professional: b.data.professional || 'Dra Késya',
+          emission_date: b.data.emission_date,
+          validity_date: b.data.validity_date || '',
+          discount_pct: b.data.discount_pct || 0,
+          payment_method: b.data.payment_method || '',
+          observations: b.data.observations || ''
+        })
+        setExtraCharge(b.data.extra_charge || 0)
+        setExtraDiscountPct(b.data.extra_discount_pct || 0)
+        setInstallmentsCount(b.data.installments_count || 1)
+      }
+      setItems((it.data || []).map((r: any) => ({
+        tempId: 'edit-' + r.id,
+        price_table_id: r.price_table_id,
+        procedure_code: r.procedure_code,
+        procedure_name: r.procedure_name,
+        tooth_number: r.tooth_number || '',
+        quantity: r.quantity,
+        unit_price: r.unit_price,
+        discount_pct: r.discount_pct || 0,
+        total: r.total
+      })))
+      if (ins.data && ins.data.length > 0) {
+        setInstallments(ins.data.map((r: any) => ({
+          tempId: 'edit-' + r.id,
+          position: r.position,
+          due_date: r.due_date,
+          is_entry: r.is_entry,
+          payment_method: r.payment_method,
+          amount: r.amount
+        })))
+      }
+      setLoadedEdit(true)
+    })()
+  }, [editBudgetId, loadedEdit])
+
   const updateItem = (tempId: string, patch: Partial<BudgetItemDraft>) => {
     setItems(prev => prev.map(it => {
       if (it.tempId !== tempId) return it
@@ -161,29 +211,45 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
     setError(null)
     setSaving(true)
     try {
-      const { data: budget, error: bErr } = await supabase
-        .from('budgets')
-        .insert([{
-          patient_id: patientId,
-          title: form.title,
-          budget_type: budgetType,
-          professional: form.professional,
-          emission_date: form.emission_date,
-          validity_date: form.validity_date || null,
-          discount_pct: form.discount_pct,
-          payment_method: form.payment_method || null,
-          observations: form.observations || null,
-          status: 'aguardando_aprovacao',
-          installments_count: installmentsCount,
-          extra_charge: extraCharge,
-          extra_discount_pct: extraDiscountPct,
-          total_payable: totalPayable
-        }])
-        .select()
-        .single()
+      const payload = {
+        patient_id: patientId,
+        title: form.title,
+        budget_type: budgetType,
+        professional: form.professional,
+        emission_date: form.emission_date,
+        validity_date: form.validity_date || null,
+        discount_pct: form.discount_pct,
+        payment_method: form.payment_method || null,
+        observations: form.observations || null,
+        installments_count: installmentsCount,
+        extra_charge: extraCharge,
+        extra_discount_pct: extraDiscountPct,
+        total_payable: totalPayable
+      }
 
-      if (bErr) throw bErr
-      if (!budget) throw new Error('Orçamento não foi criado (verifique RLS)')
+      let budget: any
+      if (editBudgetId) {
+        const { data, error: bErr } = await supabase
+          .from('budgets')
+          .update(payload)
+          .eq('id', editBudgetId)
+          .select()
+          .single()
+        if (bErr) throw bErr
+        budget = data
+        // remove itens e parcelas antigos
+        await supabase.from('budget_items').delete().eq('budget_id', editBudgetId)
+        await supabase.from('budget_installments').delete().eq('budget_id', editBudgetId)
+      } else {
+        const { data, error: bErr } = await supabase
+          .from('budgets')
+          .insert([{ ...payload, status: 'aguardando_aprovacao' }])
+          .select()
+          .single()
+        if (bErr) throw bErr
+        budget = data
+      }
+      if (!budget) throw new Error('Orçamento não foi salvo (verifique RLS)')
 
       const itemsPayload = items.map((it, i) => ({
         budget_id: budget.id,
@@ -239,7 +305,7 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
         <div className="bg-blue-600 text-white px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold">
             <span>➕</span>
-            <span>Cadastrar Orçamento</span>
+            <span>{editBudgetId ? 'Editar Orçamento' : 'Cadastrar Orçamento'}</span>
           </div>
           <button onClick={onClose} className="text-white hover:opacity-80 text-lg">✕</button>
         </div>
@@ -605,7 +671,7 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
             disabled={saving}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-bold flex items-center gap-2"
           >
-            {saving ? '⏳ Salvando...' : '☁️ Cadastrar Orçamento'}
+            {saving ? '⏳ Salvando...' : (editBudgetId ? '💾 Salvar Alterações' : '☁️ Cadastrar Orçamento')}
           </button>
         </div>
       </div>
