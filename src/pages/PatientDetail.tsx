@@ -7,6 +7,7 @@ import { PatientCadastralTab } from '@/components/patient/PatientCadastralTab'
 import { PatientClinicalTab } from '@/components/patient/PatientClinicalTab'
 import { PatientPhotoUpload } from '@/components/patient/PatientPhotoUpload'
 import { BudgetsTab } from '@/components/budget/BudgetsTab'
+import { FinancialTab } from '@/components/financial/FinancialTab'
 
 interface Patient {
   id: string
@@ -154,7 +155,7 @@ export default function PatientDetail() {
     { id: 'budgets', label: 'Orçamentos', icon: '💰', available: true },
     { id: 'crm', label: 'CRM', icon: '📊', available: false },
     { id: 'history', label: 'Histórico', icon: '📋', available: false },
-    { id: 'financial', label: 'Financeiro', icon: '🧾', available: false }
+    { id: 'financial', label: 'Financeiro', icon: '🧾', available: true }
   ]
 
   return (
@@ -282,7 +283,10 @@ export default function PatientDetail() {
             {activeTab === 'budgets' && (
               <BudgetsTab patientId={patient.id} patientName={patient.name} />
             )}
-            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && (
+            {activeTab === 'financial' && (
+              <FinancialTab patientId={patient.id} patientName={patient.name} />
+            )}
+            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && activeTab !== 'financial' && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-5xl mb-3 opacity-40">🚧</div>
                 <p>Funcionalidade em breve</p>

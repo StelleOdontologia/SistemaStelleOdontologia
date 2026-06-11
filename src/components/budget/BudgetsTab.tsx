@@ -216,6 +216,7 @@ export function BudgetsTab({ patientId, patientName }: Props) {
       {detailId && !editingId && (
         <BudgetDetailModal
           budgetId={detailId}
+          patientId={patientId}
           patientName={patientName}
           onClose={() => setDetailId(null)}
           onChanged={load}

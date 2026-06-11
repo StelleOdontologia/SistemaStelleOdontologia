@@ -46,6 +46,7 @@ interface Installment {
 
 interface Props {
   budgetId: string
+  patientId: string
   patientName: string
   onClose: () => void
   onChanged: () => void
@@ -73,10 +74,11 @@ const PAYMENT_METHOD_LABEL: Record<string, string> = {
   boleto: 'Boleto', cheque: 'Cheque', transferencia: 'Transferência'
 }
 
-export function BudgetDetailModal({ budgetId, patientName, onClose, onChanged, onEdit }: Props) {
+export function BudgetDetailModal({ budgetId, patientId, patientName, onClose, onChanged, onEdit }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('geral')
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<null | 'aprovar' | 'cancelar'>(null)
   const [error, setError] = useState<string | null>(null)
   const [budget, setBudget] = useState<BudgetFull | null>(null)
   const [items, setItems] = useState<BudgetItem[]>([])
@@ -100,11 +102,39 @@ export function BudgetDetailModal({ budgetId, patientName, onClose, onChanged, o
   const updateStatus = async (newStatus: string) => {
     setActing(true)
     setError(null)
-    const { error } = await supabase.from('budgets').update({ status: newStatus }).eq('id', budgetId)
-    setActing(false)
-    if (error) { setError(error.message); return }
-    onChanged()
-    onClose()
+    try {
+      // Se aprovando: gera títulos no Contas a Receber a partir das parcelas
+      if (newStatus === 'aprovado' && installments.length > 0 && budget) {
+        const titleBase = String(Date.now()).slice(-6)
+        const titles = installments.map(p => ({
+          patient_id: patientId,
+          budget_id: budgetId,
+          installment_id: p.id,
+          title_number: `${titleBase} ${p.position}/${installments.length}`,
+          position: p.position,
+          total_positions: installments.length,
+          due_date: p.due_date,
+          amount: p.amount,
+          payment_method: p.payment_method,
+          plan_account: 'Serviços Odontológicos',
+          professional: budget.professional || 'Dra Késya',
+          status: 'em_aberto'
+        }))
+        const { error: arErr } = await supabase.from('accounts_receivable').insert(titles)
+        if (arErr) throw arErr
+      }
+
+      const { error: bErr } = await supabase.from('budgets').update({ status: newStatus }).eq('id', budgetId)
+      if (bErr) throw bErr
+
+      onChanged()
+      onClose()
+    } catch (e: any) {
+      setError(e?.message || 'Erro ao atualizar status')
+    } finally {
+      setActing(false)
+      setConfirmAction(null)
+    }
   }
 
   if (loading || !budget) {
@@ -303,7 +333,7 @@ export function BudgetDetailModal({ budgetId, patientName, onClose, onChanged, o
             ✕ Fechar
           </button>
 
-          {!isFinalized && (
+          {!isFinalized && !confirmAction && (
             <>
               <button
                 onClick={onEdit}
@@ -313,14 +343,14 @@ export function BudgetDetailModal({ budgetId, patientName, onClose, onChanged, o
                 ✏️ Editar
               </button>
               <button
-                onClick={() => updateStatus('cancelado')}
+                onClick={() => setConfirmAction('cancelar')}
                 disabled={acting}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold flex items-center gap-2"
               >
                 ❌ Cancelar
               </button>
               <button
-                onClick={() => updateStatus('aprovado')}
+                onClick={() => setConfirmAction('aprovar')}
                 disabled={acting}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold flex items-center gap-2"
               >
@@ -329,6 +359,42 @@ export function BudgetDetailModal({ budgetId, patientName, onClose, onChanged, o
             </>
           )}
         </div>
+
+        {/* Confirmação inline */}
+        {confirmAction && (
+          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-60 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 border-2 border-gray-200">
+              <h4 className="font-bold text-gray-900 text-base">
+                {confirmAction === 'aprovar'
+                  ? 'Você confirma a APROVAÇÃO deste orçamento?'
+                  : 'Você confirma o CANCELAMENTO deste orçamento?'}
+              </h4>
+              <p className="text-sm text-gray-600 mt-2">
+                {confirmAction === 'aprovar'
+                  ? 'Serão gerados os títulos no Contas a Receber. O contrato pode ser anexado posteriormente.'
+                  : 'O orçamento ficará marcado como cancelado e não poderá mais ser editado.'}
+              </p>
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setConfirmAction(null)}
+                  disabled={acting}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => updateStatus(confirmAction === 'aprovar' ? 'aprovado' : 'cancelado')}
+                  disabled={acting}
+                  className={`px-4 py-2 text-white rounded-lg text-sm font-bold flex items-center gap-2 ${
+                    confirmAction === 'aprovar' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {acting ? '⏳ Processando...' : (confirmAction === 'aprovar' ? '⚙️ Sim, Aprovar' : '❌ Sim, Cancelar')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
