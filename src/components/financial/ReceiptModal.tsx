@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { ReceiptCompletedModal } from './ReceiptCompletedModal'
 
 type Tab = 'recebimento' | 'adicionais' | 'titulo' | 'observacoes'
 
@@ -42,6 +43,8 @@ export function ReceiptModal({ receivable, patientName, onProcessed, onClose }: 
   const [activeTab, setActiveTab] = useState<Tab>('recebimento')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCompleted, setShowCompleted] = useState(false)
+  const [savedReceiptId, setSavedReceiptId] = useState<string | null>(null)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const [form, setForm] = useState({
@@ -75,7 +78,7 @@ export function ReceiptModal({ receivable, patientName, onProcessed, onClose }: 
     setError(null)
     setSaving(true)
     try {
-      const { error: rErr } = await supabase.from('receipts').insert([{
+      const { data: rData, error: rErr } = await supabase.from('receipts').insert([{
         receivable_id: receivable.id,
         patient_id: receivable.patient_id,
         paid_at: form.paid_at,
@@ -96,9 +99,10 @@ export function ReceiptModal({ receivable, patientName, onProcessed, onClose }: 
         occurrence_date: form.occurrence_date || null,
         owner_name: form.owner_name || null,
         observations: form.observations || null
-      }])
+      }]).select().single()
       if (rErr) throw rErr
-      onProcessed()
+      setSavedReceiptId(rData?.id || null)
+      setShowCompleted(true)
     } catch (e: any) {
       setError(e?.message || 'Erro ao processar recebimento')
     } finally {
@@ -362,6 +366,26 @@ export function ReceiptModal({ receivable, patientName, onProcessed, onClose }: 
           </button>
         </div>
       </div>
+
+      {showCompleted && (
+        <ReceiptCompletedModal
+          onEmitInvoice={async () => {
+            // Marca o recebimento como "nota solicitada" — a integração com SEFAZ é o próximo passo
+            if (savedReceiptId) {
+              await supabase.from('receipts').update({
+                invoice_status: 'solicitada'
+              }).eq('id', savedReceiptId)
+            }
+          }}
+          onPrintReceipt={() => {
+            window.print()
+          }}
+          onClose={() => {
+            setShowCompleted(false)
+            onProcessed()
+          }}
+        />
+      )}
     </div>
   )
 }

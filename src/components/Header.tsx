@@ -5,13 +5,14 @@ export function Header() {
   const location = useLocation()
   const [showMenu, setShowMenu] = useState(false)
 
-  const isActive = (path: string) => location.pathname === path
+  const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
 
   const navItems = [
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/pacientes', label: 'Pacientes', icon: '👥' },
     { path: '/agendamentos', label: 'Agendamentos', icon: '📅' },
     { path: '/fluxo', label: 'Fluxo', icon: '⏱️' },
+    { path: '/financeiro', label: 'Financeiro', icon: '💰' },
     { path: '/configuracoes', label: 'Configurações', icon: '⚙️' }
   ]
 
