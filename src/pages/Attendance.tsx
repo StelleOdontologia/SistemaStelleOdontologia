@@ -52,6 +52,7 @@ export default function Attendance() {
   const [now, setNow] = useState(new Date())
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null)
   const [confirmingFinish, setConfirmingFinish] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
 
   useEffect(() => {
     if (appointmentId) loadData()
@@ -111,6 +112,7 @@ export default function Attendance() {
   const handleFinish = async () => {
     if (!appointment) return
 
+    setFinishError(null)
     setSaving(true)
     try {
       // Salva o registro clínico
@@ -149,7 +151,8 @@ export default function Attendance() {
       navigate('/fluxo')
     } catch (error: any) {
       console.error('Erro ao salvar:', error)
-      alert(`Erro ao concluir: ${error?.message || 'Desconhecido'}`)
+      setFinishError(error?.message || error?.details || JSON.stringify(error) || 'Erro desconhecido')
+      setConfirmingFinish(false)
     } finally {
       setSaving(false)
     }
@@ -310,6 +313,12 @@ export default function Attendance() {
                 <div><strong>Dentista:</strong> Dra Késya</div>
                 <div><strong>Agendado:</strong> {appointment.appointment_time.substring(0, 5)}</div>
               </div>
+
+              {finishError && (
+                <div className="w-full bg-red-50 border border-red-400 rounded-lg p-3 text-xs text-red-800 break-all">
+                  <strong>❌ Erro:</strong> {finishError}
+                </div>
+              )}
             </div>
           </div>
         </div>
