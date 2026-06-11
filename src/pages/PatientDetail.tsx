@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale'
 import { PatientCadastralTab } from '@/components/patient/PatientCadastralTab'
 import { PatientClinicalTab } from '@/components/patient/PatientClinicalTab'
 import { PatientPhotoUpload } from '@/components/patient/PatientPhotoUpload'
+import { BudgetsTab } from '@/components/budget/BudgetsTab'
 
 interface Patient {
   id: string
@@ -40,7 +41,7 @@ interface LastAppointment {
   appointment_id: string
 }
 
-type MainTab = 'cadastral' | 'clinical' | 'crm' | 'history' | 'financial'
+type MainTab = 'cadastral' | 'clinical' | 'budgets' | 'crm' | 'history' | 'financial'
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>()
@@ -150,9 +151,10 @@ export default function PatientDetail() {
   const mainTabs: { id: MainTab; label: string; icon: string; available: boolean }[] = [
     { id: 'cadastral', label: 'Dados Cadastrais', icon: '👤', available: true },
     { id: 'clinical', label: 'Dados Clínicos', icon: '🦷', available: true },
+    { id: 'budgets', label: 'Orçamentos', icon: '💰', available: true },
     { id: 'crm', label: 'CRM', icon: '📊', available: false },
     { id: 'history', label: 'Histórico', icon: '📋', available: false },
-    { id: 'financial', label: 'Financeiro', icon: '💰', available: false }
+    { id: 'financial', label: 'Financeiro', icon: '🧾', available: false }
   ]
 
   return (
@@ -277,7 +279,10 @@ export default function PatientDetail() {
             {activeTab === 'clinical' && (
               <PatientClinicalTab patientId={patient.id} />
             )}
-            {activeTab !== 'cadastral' && activeTab !== 'clinical' && (
+            {activeTab === 'budgets' && (
+              <BudgetsTab patientId={patient.id} patientName={patient.name} />
+            )}
+            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-5xl mb-3 opacity-40">🚧</div>
                 <p>Funcionalidade em breve</p>
