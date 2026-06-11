@@ -136,12 +136,14 @@ export default function Attendance() {
         if (error) throw error
       }
 
-      // Marca agendamento como completed
+      // Marca agendamento como completed e registra hora de conclusão (usado para estatísticas)
+      // Os campos waiting_at, started_at e completed_at preservam os timestamps completos
       const { error: apptError } = await supabase
         .from('appointments')
         .update({
           flow_status: 'completed',
-          status: 'completed'
+          status: 'completed',
+          completed_at: new Date().toISOString()
         })
         .eq('id', appointment.id)
 
