@@ -163,6 +163,7 @@ export function AppointmentForm({
           duration_minutes: parseInt(formData.duration_minutes),
           procedure: formData.procedure,
           status: 'scheduled',
+          flow_status: 'pending',
           observations: formData.observations,
           professional_id: '6f8e9f4b-5094-4ccd-aae3-426f733c2890', // Dra Kêsya Nogueira
           whatsapp_confirmed: false
