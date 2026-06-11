@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ProcedureSearchDropdown, type PriceTableRow } from './ProcedureSearchDropdown'
 import { format, addMonths } from 'date-fns'
@@ -17,6 +17,26 @@ interface BudgetItemDraft {
   discount_pct: number
   total: number
 }
+
+interface InstallmentDraft {
+  tempId: string
+  position: number
+  due_date: string
+  is_entry: boolean
+  payment_method: string
+  amount: number
+}
+
+const PAYMENT_METHODS = [
+  { value: 'carteira', label: 'Carteira' },
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'pix', label: 'PIX' },
+  { value: 'cartao_credito', label: 'Cartão Crédito' },
+  { value: 'cartao_debito', label: 'Cartão Débito' },
+  { value: 'boleto', label: 'Boleto' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'transferencia', label: 'Transferência' }
+]
 
 interface Props {
   patientId: string
@@ -51,6 +71,47 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
   })
 
   const [items, setItems] = useState<BudgetItemDraft[]>([])
+
+  // Pagamento
+  const [installmentsCount, setInstallmentsCount] = useState(1)
+  const [extraCharge, setExtraCharge] = useState(0)
+  const [extraDiscountPct, setExtraDiscountPct] = useState(0)
+  const [installments, setInstallments] = useState<InstallmentDraft[]>([])
+
+  // Recalcula parcelas quando muda contagem, items ou taxas
+  const procedureNet = items.reduce((acc, it) => {
+    const gross = it.quantity * it.unit_price
+    return acc + gross * (1 - it.discount_pct / 100)
+  }, 0)
+
+  const subtotalWithExtras = procedureNet + extraCharge
+  const totalPayable = subtotalWithExtras * (1 - extraDiscountPct / 100)
+
+  useEffect(() => {
+    const n = Math.max(1, installmentsCount)
+    const baseAmount = Math.floor((totalPayable / n) * 100) / 100
+    const lastAmount = parseFloat((totalPayable - baseAmount * (n - 1)).toFixed(2))
+    setInstallments(prev =>
+      Array.from({ length: n }, (_, i) => {
+        const existing = prev[i]
+        return {
+          tempId: existing?.tempId || `inst-${Date.now()}-${i}`,
+          position: i + 1,
+          due_date: existing?.due_date || format(addMonths(today, i), 'yyyy-MM-dd'),
+          is_entry: existing?.is_entry ?? false,
+          payment_method: existing?.payment_method || 'carteira',
+          amount: i === n - 1 ? lastAmount : baseAmount
+        }
+      })
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [installmentsCount, totalPayable])
+
+  const updateInstallment = (tempId: string, patch: Partial<InstallmentDraft>) => {
+    setInstallments(prev => prev.map(p => (p.tempId === tempId ? { ...p, ...patch } : p)))
+  }
+
+  const installmentsSum = installments.reduce((acc, p) => acc + (p.amount || 0), 0)
 
   const updateItem = (tempId: string, patch: Partial<BudgetItemDraft>) => {
     setItems(prev => prev.map(it => {
@@ -112,7 +173,11 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
           discount_pct: form.discount_pct,
           payment_method: form.payment_method || null,
           observations: form.observations || null,
-          status: 'aguardando_aprovacao'
+          status: 'aguardando_aprovacao',
+          installments_count: installmentsCount,
+          extra_charge: extraCharge,
+          extra_discount_pct: extraDiscountPct,
+          total_payable: totalPayable
         }])
         .select()
         .single()
@@ -135,6 +200,20 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
 
       const { error: iErr } = await supabase.from('budget_items').insert(itemsPayload)
       if (iErr) throw iErr
+
+      // Parcelas
+      if (installments.length > 0) {
+        const instPayload = installments.map(p => ({
+          budget_id: budget.id,
+          position: p.position,
+          due_date: p.due_date,
+          is_entry: p.is_entry,
+          payment_method: p.payment_method,
+          amount: p.amount
+        }))
+        const { error: pErr } = await supabase.from('budget_installments').insert(instPayload)
+        if (pErr) throw pErr
+      }
 
       onSaved()
     } catch (e: any) {
@@ -380,7 +459,125 @@ export function BudgetFormModal({ patientId, patientName, budgetType, onSaved, o
             </div>
           )}
 
-          {(activeTab === 'manutencoes' || activeTab === 'pagamento' || activeTab === 'observacoes') && (
+          {activeTab === 'pagamento' && (
+            <div>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+                    <tr>
+                      <th className="px-2 py-2 w-8 text-center">#</th>
+                      <th className="px-2 py-2 w-32">Data</th>
+                      <th className="px-2 py-2 w-16 text-center">Entrada</th>
+                      <th className="px-2 py-2">Espécie de Título</th>
+                      <th className="px-2 py-2 w-28 text-right">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {installments.map(p => (
+                      <tr key={p.tempId} className="border-t border-gray-200">
+                        <td className="px-2 py-2 text-center text-gray-700 font-bold">{p.position}.</td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="date"
+                            value={p.due_date}
+                            onChange={e => updateInstallment(p.tempId, { due_date: e.target.value })}
+                            className="w-full px-1 py-1 border border-gray-300 rounded text-xs text-gray-900"
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={p.is_entry}
+                            onChange={e => updateInstallment(p.tempId, { is_entry: e.target.checked })}
+                            className="w-4 h-4 accent-blue-600"
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <select
+                            value={p.payment_method}
+                            onChange={e => updateInstallment(p.tempId, { payment_method: e.target.value })}
+                            className="w-full px-1 py-1 border border-gray-300 rounded text-xs text-gray-900"
+                          >
+                            {PAYMENT_METHODS.map(m => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <input
+                            type="number"
+                            step={0.01}
+                            min={0}
+                            value={p.amount}
+                            onChange={e => updateInstallment(p.tempId, { amount: parseFloat(e.target.value) || 0 })}
+                            className="w-24 px-1 py-1 border border-gray-300 rounded text-xs text-right text-gray-900"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {Math.abs(installmentsSum - totalPayable) > 0.02 && (
+                <div className="mt-2 px-3 py-2 bg-yellow-50 border border-yellow-300 rounded text-xs text-yellow-800">
+                  ⚠️ A soma das parcelas (R$ {installmentsSum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) é diferente do Total a Pagar (R$ {totalPayable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                </div>
+              )}
+
+              {/* Resumo */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-xs text-gray-500">Total dos Procedimentos</div>
+                  <div className="font-bold text-gray-800">R$ {procedureNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-2 text-center">
+                  <div className="text-xs text-blue-700">Parcelas</div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={36}
+                    value={installmentsCount}
+                    onChange={e => setInstallmentsCount(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-1 py-0.5 border border-blue-300 rounded text-center font-bold text-blue-800 text-lg"
+                  />
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-xs text-gray-500">Despesa ADICIONAL</div>
+                  <input
+                    type="number"
+                    step={0.01}
+                    min={0}
+                    value={extraCharge}
+                    onChange={e => setExtraCharge(parseFloat(e.target.value) || 0)}
+                    className="w-full px-1 py-0.5 border border-gray-300 rounded text-center font-bold text-gray-800"
+                    placeholder="R$ 0,00"
+                  />
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-xs text-gray-500">Desconto ADICIONAL</div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step={0.01}
+                      min={0}
+                      max={100}
+                      value={extraDiscountPct}
+                      onChange={e => setExtraDiscountPct(parseFloat(e.target.value) || 0)}
+                      className="w-full px-1 py-0.5 border border-gray-300 rounded text-center font-bold text-red-700"
+                    />
+                    <span className="text-xs text-gray-500">%</span>
+                  </div>
+                </div>
+                <div className="bg-green-50 border border-green-300 rounded-lg p-2 text-center">
+                  <div className="text-xs text-green-700">Total a Pagar</div>
+                  <div className="font-bold text-green-800 text-lg">R$ {totalPayable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(activeTab === 'manutencoes' || activeTab === 'observacoes') && (
             <div className="text-center py-12 text-gray-400">
               <div className="text-4xl mb-3 opacity-40">🚧</div>
               <p className="text-sm">Em breve</p>
