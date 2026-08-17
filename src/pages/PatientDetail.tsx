@@ -8,6 +8,9 @@ import { PatientClinicalTab } from '@/components/patient/PatientClinicalTab'
 import { PatientPhotoUpload } from '@/components/patient/PatientPhotoUpload'
 import { BudgetsTab } from '@/components/budget/BudgetsTab'
 import { FinancialTab } from '@/components/financial/FinancialTab'
+import { RelationshipForm } from '@/components/RelationshipForm'
+import { RelationshipList } from '@/components/RelationshipList'
+import { ResponsibleSelector } from '@/components/ResponsibleSelector'
 
 interface Patient {
   id: string
@@ -42,7 +45,7 @@ interface LastAppointment {
   appointment_id: string
 }
 
-type MainTab = 'cadastral' | 'clinical' | 'budgets' | 'crm' | 'history' | 'financial'
+type MainTab = 'cadastral' | 'clinical' | 'budgets' | 'relationships' | 'crm' | 'history' | 'financial'
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>()
@@ -153,6 +156,7 @@ export default function PatientDetail() {
     { id: 'cadastral', label: 'Dados Cadastrais', icon: '👤', available: true },
     { id: 'clinical', label: 'Dados Clínicos', icon: '🦷', available: true },
     { id: 'budgets', label: 'Orçamentos', icon: '💰', available: true },
+    { id: 'relationships', label: 'Relacionamentos', icon: '👨‍👩‍👧‍👦', available: true },
     { id: 'crm', label: 'CRM', icon: '📊', available: false },
     { id: 'history', label: 'Histórico', icon: '📋', available: false },
     { id: 'financial', label: 'Financeiro', icon: '🧾', available: true }
@@ -283,10 +287,13 @@ export default function PatientDetail() {
             {activeTab === 'budgets' && (
               <BudgetsTab patientId={patient.id} patientName={patient.name} />
             )}
+            {activeTab === 'relationships' && (
+              <RelationshipsTabContent patientId={patient.id} />
+            )}
             {activeTab === 'financial' && (
               <FinancialTab patientId={patient.id} patientName={patient.name} />
             )}
-            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && activeTab !== 'financial' && (
+            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && activeTab !== 'relationships' && activeTab !== 'financial' && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-5xl mb-3 opacity-40">🚧</div>
                 <p>Funcionalidade em breve</p>
@@ -295,6 +302,42 @@ export default function PatientDetail() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function RelationshipsTabContent({ patientId }: { patientId: string }) {
+  const [showForm, setShowForm] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const handleSuccess = () => {
+    setShowForm(false)
+    setRefreshKey(prev => prev + 1)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-gray-900">Relacionamentos Familiares</h3>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+        >
+          {showForm ? '❌ Cancelar' : '➕ Novo Relacionamento'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <RelationshipForm
+            patientId={patientId}
+            onSuccess={handleSuccess}
+            onCancel={() => setShowForm(false)}
+          />
+        </div>
+      )}
+
+      <RelationshipList key={refreshKey} patientId={patientId} onDeleteSuccess={handleSuccess} />
     </div>
   )
 }

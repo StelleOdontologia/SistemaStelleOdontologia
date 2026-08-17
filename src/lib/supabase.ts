@@ -30,6 +30,7 @@ export interface Patient {
   landline?: string
   city?: string
   zip_code?: string
+  responsible_id?: string
   created_at: string
 }
 
@@ -45,4 +46,23 @@ export interface Appointment {
   observations?: string
   whatsapp_confirmed: boolean
   created_at: string
+}
+
+export type RelationshipType =
+  | 'pai' | 'mãe' | 'filho' | 'filha' | 'irmão' | 'irmã'
+  | 'avó' | 'avô' | 'neto' | 'neta'
+  | 'cônjuge' | 'cunhado' | 'cunhada' | 'tio' | 'tia' | 'primo' | 'prima'
+  | 'amigo' | 'responsável_legal' | 'outro'
+
+export interface PatientRelationship {
+  id: string
+  patient_a_id: string
+  patient_b_id: string
+  relationship_type: RelationshipType
+  is_responsible: boolean
+  bidirectional: boolean
+  notes?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
 }

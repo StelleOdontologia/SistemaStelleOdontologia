@@ -48,6 +48,16 @@ function formatAppointmentDate(date: string, time: string): string {
   return `${dayLabel} (${dateStr}) às ${timeStr}`
 }
 
+// Gera token único para confirmação
+function generateConfirmationToken(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let token = ''
+  for (let i = 0; i < 32; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return token
+}
+
 // Envia mensagem via Evolution API
 async function sendWhatsAppMessage(
   apiUrl: string,
@@ -117,6 +127,17 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Verifica se confirmação automática está ativada
+    if (!policy.enable_confirmation_responses) {
+      return new Response(JSON.stringify({
+        ok: true,
+        message: 'Confirmação automática desativada',
+        sent: 0
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     // Calcula data alvo (próximo dia ou data específica)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -164,12 +185,29 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
-      const message = applyVariables(policy.message_template, {
+      // Gera token de confirmação se não existe
+      let confirmationToken = appt.confirmation_token
+      if (!confirmationToken) {
+        confirmationToken = generateConfirmationToken()
+        await supabase
+          .from('appointments')
+          .update({ confirmation_token: confirmationToken })
+          .eq('id', appt.id)
+      }
+
+      // Monta URL de confirmação
+      const baseUrl = config.app_url || 'https://sistema.stelleodontologia.com.br'
+      const confirmationUrl = `${baseUrl}/c/${confirmationToken}`
+
+      // Monta mensagem com template e link
+      const templateMessage = applyVariables(policy.message_template, {
         nomeFantasia: config.clinic_name || 'Stelle Odontologia',
         paciente: patient.name.split(' ')[0],
         dataAgenda: formatAppointmentDate(appt.appointment_date, appt.appointment_time),
         telefone: config.clinic_phone || ''
       })
+
+      const message = `${templateMessage}\n\n🔗 Confirme sua presença: ${confirmationUrl}`
 
       if (dry_run) {
         results.push({

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { AdministrationClinicData } from '@/components/administration/AdministrationClinicData'
 import { AdministrationNfseServices } from '@/components/administration/AdministrationNfseServices'
 import { AdministrationNfseTaxRates } from '@/components/administration/AdministrationNfseTaxRates'
+import { AdministrationMessagePolicy } from '@/components/administration/AdministrationMessagePolicy'
 
-type Section = 'clinic_data' | 'nfse_services' | 'nfse_tax_rates'
+type Section = 'clinic_data' | 'nfse_services' | 'nfse_tax_rates' | 'message_policy'
 
 export default function Administration() {
   const [section, setSection] = useState<Section>('clinic_data')
@@ -11,7 +12,8 @@ export default function Administration() {
   const sections: { id: Section; label: string; icon: string }[] = [
     { id: 'clinic_data', label: 'Dados da Clínica', icon: '🏥' },
     { id: 'nfse_services', label: 'Serviços NFS-e', icon: '🧾' },
-    { id: 'nfse_tax_rates', label: 'Alíquotas NFS-e', icon: '📊' }
+    { id: 'nfse_tax_rates', label: 'Alíquotas NFS-e', icon: '📊' },
+    { id: 'message_policy', label: 'Mensagens WhatsApp', icon: '💬' }
   ]
 
   return (
@@ -47,6 +49,7 @@ export default function Administration() {
             {section === 'clinic_data' && <AdministrationClinicData />}
             {section === 'nfse_services' && <AdministrationNfseServices />}
             {section === 'nfse_tax_rates' && <AdministrationNfseTaxRates />}
+            {section === 'message_policy' && <AdministrationMessagePolicy />}
           </main>
         </div>
       </div>
