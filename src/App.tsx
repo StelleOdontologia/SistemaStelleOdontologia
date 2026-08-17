@@ -6,6 +6,7 @@ import Home from '@/pages/Home'
 import Patients from '@/pages/Patients'
 import Appointments from '@/pages/Appointments'
 import ClinicFlow from '@/pages/ClinicFlow'
+import ImportData from '@/pages/ImportData'
 import Settings from '@/pages/Settings'
 import ConfirmAppointment from '@/pages/ConfirmAppointment'
 import Attendance from '@/pages/Attendance'
@@ -27,6 +28,7 @@ function AppLayout() {
         <Route path="/pacientes/:id" element={<PatientDetail />} />
         <Route path="/agendamentos" element={<Appointments />} />
         <Route path="/fluxo" element={<ClinicFlow />} />
+        <Route path="/importacao" element={<ImportData />} />
         <Route path="/atendimento/:id" element={<Attendance />} />
         <Route path="/financeiro" element={<Financial />} />
         <Route path="/administracao" element={<Administration />} />
