@@ -45,6 +45,13 @@ export interface Appointment {
   status: 'scheduled' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled'
   observations?: string
   whatsapp_confirmed: boolean
+  // Timing fields for clinic flow tracking
+  arrival_time?: string
+  start_time?: string
+  end_time?: string
+  delay_minutes?: number
+  wait_minutes?: number
+  attendance_minutes?: number
   created_at: string
 }
 
