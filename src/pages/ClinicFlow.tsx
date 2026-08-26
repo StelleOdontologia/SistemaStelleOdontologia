@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { format, parseISO, differenceInYears } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { AppointmentTimingButtons } from '@/components/AppointmentTimingButtons'
 
 interface Appointment {
   id: string
@@ -594,6 +595,13 @@ function WaitingCard({ appt, patient, birthInfo, timer, isDragging, onDragStart,
 }
 
 function InProgressCard({ appt, patient, birthInfo, timer, waitedTime, isDragging, onDragStart, onDragEnd, onOpen, onFinish, formatTime }: any) {
+  const [showTiming, setShowTiming] = useState(false)
+  const [appointment, setAppointment] = useState(appt)
+
+  const handleUpdateAppointment = (updated: any) => {
+    setAppointment(updated)
+  }
+
   return (
     <div
       draggable
@@ -622,13 +630,31 @@ function InProgressCard({ appt, patient, birthInfo, timer, waitedTime, isDraggin
         <div className="text-xs text-gray-500">🪑 {waitedTime} esperou</div>
       </div>
       <div className="text-xs text-gray-500 mb-2">📅 Agendado: {formatTime(appt.appointment_time)}</div>
+
+      {/* Botões de Timing */}
+      {showTiming && (
+        <div className="mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
+          <AppointmentTimingButtons
+            appointment={appointment}
+            onUpdate={handleUpdateAppointment}
+          />
+        </div>
+      )}
+
       <div className="flex gap-1">
+        <button
+          onClick={() => setShowTiming(!showTiming)}
+          className="flex-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs font-bold flex items-center justify-center gap-1"
+          title="Registrar tempos de entrada/início/término"
+        >
+          {showTiming ? '⏱️ Ocultar Tempos' : '⏱️ Registrar Tempos'}
+        </button>
         <button
           onClick={onOpen}
           className="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center justify-center gap-1"
           title="Abrir ficha do atendimento"
         >
-          📋 Atendimento
+          📋 Ficha
         </button>
         <button
           onClick={onFinish}
