@@ -79,7 +79,7 @@ export default function Attendance() {
       setAppointment(apptData)
 
       // Carrega registro existente desta consulta
-      const { data: recordData } = await supabase
+      const { data: recordData, error: recordError } = await supabase
         .from('clinical_records')
         .select('*')
         .eq('appointment_id', appointmentId)
@@ -91,6 +91,8 @@ export default function Attendance() {
       if (recordData) {
         setCurrentRecord(recordData)
         setClinicalNotes(recordData.clinical_notes || '')
+      } else if (recordError) {
+        console.error('Erro ao carregar clinical_record:', recordError)
       }
 
       // Carrega histórico de outros atendimentos do paciente
@@ -402,6 +404,23 @@ export default function Attendance() {
           <div className="p-5">
             {activeTab === 'clinical' && (
               <div>
+                {/* Dados do Clinical Record se existir */}
+                {currentRecord && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
+                    <h4 className="font-bold text-blue-900 mb-2">📋 Dados Clínicos do Atendimento</h4>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <div><strong>Procedimento:</strong> {currentRecord.procedure}</div>
+                      <div><strong>Data do Registro:</strong> {format(parseISO(currentRecord.record_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</div>
+                      {currentRecord.clinical_notes && (
+                        <div className="mt-2 p-2 bg-white rounded border border-blue-100">
+                          <strong className="text-xs text-gray-600">Anotações:</strong>
+                          <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">{currentRecord.clinical_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <h3 className="font-bold text-xl text-gray-900 mb-3">Desenvolvimento Clínico</h3>
                 <textarea
                   value={clinicalNotes}
