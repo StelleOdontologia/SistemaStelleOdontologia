@@ -57,7 +57,7 @@ export function BudgetsTab({ patientId, patientName }: Props) {
       .select('*')
       .eq('patient_id', patientId)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
+      .order('emission_date', { ascending: true })
 
     // Conta procedimentos por orçamento
     if (budgetsData && budgetsData.length > 0) {
