@@ -7,6 +7,7 @@ import { PatientCadastralTab } from '@/components/patient/PatientCadastralTab'
 import { PatientClinicalTab } from '@/components/patient/PatientClinicalTab'
 import { PatientPhotoUpload } from '@/components/patient/PatientPhotoUpload'
 import { BudgetsTab } from '@/components/budget/BudgetsTab'
+import { ContractsTab } from '@/components/budget/ContractsTab'
 import { FinancialTab } from '@/components/financial/FinancialTab'
 import { RelationshipForm } from '@/components/RelationshipForm'
 import { RelationshipList } from '@/components/RelationshipList'
@@ -45,7 +46,7 @@ interface LastAppointment {
   appointment_id: string
 }
 
-type MainTab = 'cadastral' | 'clinical' | 'budgets' | 'relationships' | 'crm' | 'history' | 'financial'
+type MainTab = 'cadastral' | 'clinical' | 'budgets' | 'contracts' | 'relationships' | 'crm' | 'history' | 'financial'
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>()
@@ -156,6 +157,7 @@ export default function PatientDetail() {
     { id: 'cadastral', label: 'Dados Cadastrais', icon: '👤', available: true },
     { id: 'clinical', label: 'Dados Clínicos', icon: '🦷', available: true },
     { id: 'budgets', label: 'Orçamentos', icon: '💰', available: true },
+    { id: 'contracts', label: 'Contratos', icon: '📄', available: true },
     { id: 'relationships', label: 'Relacionamentos', icon: '👨‍👩‍👧‍👦', available: true },
     { id: 'crm', label: 'CRM', icon: '📊', available: false },
     { id: 'history', label: 'Histórico', icon: '📋', available: false },
@@ -287,13 +289,16 @@ export default function PatientDetail() {
             {activeTab === 'budgets' && (
               <BudgetsTab patientId={patient.id} patientName={patient.name} />
             )}
+            {activeTab === 'contracts' && (
+              <ContractsTab patientId={patient.id} patientName={patient.name} />
+            )}
             {activeTab === 'relationships' && (
               <RelationshipsTabContent patientId={patient.id} />
             )}
             {activeTab === 'financial' && (
               <FinancialTab patientId={patient.id} patientName={patient.name} />
             )}
-            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && activeTab !== 'relationships' && activeTab !== 'financial' && (
+            {activeTab !== 'cadastral' && activeTab !== 'clinical' && activeTab !== 'budgets' && activeTab !== 'contracts' && activeTab !== 'relationships' && activeTab !== 'financial' && (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-5xl mb-3 opacity-40">🚧</div>
                 <p>Funcionalidade em breve</p>
