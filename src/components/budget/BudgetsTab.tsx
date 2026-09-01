@@ -77,9 +77,8 @@ export function BudgetsTab({ patientId, patientName }: Props) {
     setLoading(false)
   }
 
-  // Totais agregados
+  // Totais agregados (inclui todos os status, igual ao Controle Odonto)
   const agg = budgets.reduce((acc, b) => {
-    if (b.status === 'cancelado' || b.status === 'recusado') return acc
     const net = b.total_payable ?? b.total_net ?? 0
     const extraDisc = ((b.total_net || 0) * (b.extra_discount_pct || 0) / 100)
     acc.total += net
