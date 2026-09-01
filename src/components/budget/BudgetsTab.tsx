@@ -35,7 +35,8 @@ const STATUS_BADGE: Record<string, { label: string; bar: string }> = {
   aprovado: { label: 'APROVADO', bar: 'bg-green-600' },
   recusado: { label: 'RECUSADO', bar: 'bg-red-600' },
   cancelado: { label: 'CANCELADO', bar: 'bg-red-600' },
-  concluido: { label: 'CONCLUÍDO', bar: 'bg-blue-600' }
+  concluido: { label: 'CONCLUÍDO', bar: 'bg-blue-600' },
+  vencido: { label: 'VENCIDO', bar: 'bg-orange-500' }
 }
 
 const MONTH_ABBR = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
