@@ -103,14 +103,28 @@ export function BudgetDetailModal({ budgetId, patientId, patientName, onClose, o
     setActing(true)
     setError(null)
     try {
-      // Se aprovando: gera títulos no Contas a Receber a partir das parcelas
+      // Se aprovando: gera o contrato e os títulos no Contas a Receber a partir das parcelas
       if (newStatus === 'aprovado' && installments.length > 0 && budget) {
-        const titleBase = String(Date.now()).slice(-6)
+        const { data: contract, error: contractErr } = await supabase
+          .from('contracts')
+          .insert({
+            budget_id: budgetId,
+            patient_id: patientId,
+            professional: budget.professional || 'Dra Késya',
+            start_date: budget.emission_date,
+            total_amount: budget.total_payable ?? budget.total_net,
+            status: 'ativo'
+          })
+          .select()
+          .single()
+        if (contractErr) throw contractErr
+
         const titles = installments.map(p => ({
           patient_id: patientId,
           budget_id: budgetId,
+          contract_id: contract.id,
           installment_id: p.id,
-          title_number: `${titleBase} ${p.position}/${installments.length}`,
+          title_number: `${contract.number} ${p.position}/${installments.length}`,
           position: p.position,
           total_positions: installments.length,
           due_date: p.due_date,
