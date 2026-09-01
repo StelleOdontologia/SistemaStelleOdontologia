@@ -136,6 +136,18 @@ export function BudgetDetailModal({ budgetId, patientId, patientName, onClose, o
         }))
         const { error: arErr } = await supabase.from('accounts_receivable').insert(titles)
         if (arErr) throw arErr
+
+        // Gera um procedimento rastreável por item do orçamento (aba Procedimentos)
+        if (items.length > 0) {
+          const procedures = items.map(it => ({
+            budget_item_id: it.id,
+            contract_id: contract.id,
+            patient_id: patientId,
+            status: 'em_aberto'
+          }))
+          const { error: procErr } = await supabase.from('procedures').insert(procedures)
+          if (procErr) throw procErr
+        }
       }
 
       const { error: bErr } = await supabase.from('budgets').update({ status: newStatus }).eq('id', budgetId)
